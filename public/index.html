@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Jeu Cubes</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #222;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain; 
+            font-family: Arial, sans-serif;
+            transition: background-image 0.3s ease;
+            width: 100vw;
+            height: 100vh;
+        }
+        .cube {
+            position: absolute; width: 50px; height: 50px;
+            border: 2px solid rgba(255,255,255,0.5);
+            box-sizing: border-box;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.5);
+            transition: background-color 0.2s;
+        }
+        
+        /* Bouton pour afficher/cacher le menu */
+        #toggle-btn {
+            position: fixed; top: 10px; left: 10px;
+            z-index: 2000;
+            padding: 8px 12px;
+            background: #fff;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        #ui-container {
+            position: fixed; top: 50px; left: 10px; /* Décalé vers le bas pour laisser place au bouton */
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px; border-radius: 8px; z-index: 1000;
+            display: flex; flex-direction: column; gap: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            
+            /* Animation d'apparition/disparition */
+            transition: opacity 0.3s, visibility 0.3s;
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Classe pour cacher le menu */
+        #ui-container.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none; /* Empêche de cliquer quand c'est caché */
+        }
+
+        button { cursor: pointer; padding: 5px 10px; }
+    </style>
+</head>
+<body>
+
+<button id="toggle-btn" onclick="toggleUI()">Menu (H)</button>
+
+<div id="ui-container">
+    <label><strong>Changer le fond (Max 3 Mo) :</strong></label>
+    <input type="file" id="fileInput" accept="image/*">
+    <button onclick="uploadImage()">Envoyer l'image</button>
+    
+    <hr style="width: 100%; border: 1px solid #ccc; margin: 5px 0;">
+
+    <label><strong>Ma Couleur :</strong></label>
+    <div style="display: flex; gap: 5px; align-items: center;">
+        <input type="color" id="colorInput" value="#ff0000">
+        <button onclick="changeColor()">Appliquer</button>
+    </div>
+
+    <div id="status" style="font-size: 12px; color: blue; margin-top: 5px;"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    const playersDOM = {};
+    const playersData = {};
+    const speed = 15; 
+    const cubeSize = 50;
+    
+    let myId = null;
+    let myX = 0; let myY = 0;
+    
+    const keysPressed = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+
+    // --- NOUVELLE FONCTION TOGGLE UI ---
+    function toggleUI() {
+        const ui = document.getElementById('ui-container');
+        ui.classList.toggle('hidden');
+        
+        // Redonne le focus au body pour continuer à bouger sans cliquer sur le jeu
+        document.body.focus();
+    }
+
+    // --- FONCTION UPLOAD ---
+    function uploadImage() {
+        const statusDiv = document.getElementById('status');
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+
+        if (file) {
+            if (file.size > 3 * 1024 * 1024) {
+                alert("Image trop lourde ! (Max 3 Mo).");
+                return;
+            }
+            statusDiv.innerText = "Envoi en cours...";
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                socket.emit('changeBackground', e.target.result);
+                statusDiv.innerText = "Image envoyée !";
+                fileInput.value = ''; 
+                setTimeout(() => { statusDiv.innerText = ""; }, 3000);
+            };
+            reader.readAsDataURL(file);
+            fileInput.blur(); 
+        } else {
+            alert("Sélectionne un fichier d'abord !");
+        }
+    }
+
+    // --- FONCTION CHANGEMENT DE COULEUR ---
+    function changeColor() {
+        const colorInput = document.getElementById('colorInput');
+        const newColor = colorInput.value;
+        socket.emit('changeColor', newColor);
+        document.getElementById('status').innerText = "Couleur changée !";
+        setTimeout(() => { document.getElementById('status').innerText = ""; }, 2000);
+        document.body.focus(); 
+    }
+
+    // --- SOCKET IO ---
+    socket.on('connect', () => console.log('Connecté !'));
+    socket.on('disconnect', () => console.log('Déconnecté...'));
+
+    socket.on('currentPlayers', (serverPlayers) => {
+        Object.keys(serverPlayers).forEach((id) => {
+            playersData[id] = serverPlayers[id];
+            if (!playersDOM[id]) createCube(id, serverPlayers[id]);
+            
+            if (id === socket.id) {
+                myId = id; 
+                myX = serverPlayers[id].x; 
+                myY = serverPlayers[id].y;
+                document.getElementById('colorInput').value = serverPlayers[id].color;
+            } else {
+                updateCubePos(id, serverPlayers[id].x, serverPlayers[id].y);
+            }
+        });
+    });
+
+    socket.on('newPlayer', (data) => {
+        playersData[data.playerId] = data.playerInfo;
+        createCube(data.playerId, data.playerInfo);
+    });
+    
+    socket.on('playerMoved', (data) => {
+        if (playersData[data.playerId]) {
+            playersData[data.playerId].x = data.x;
+            playersData[data.playerId].y = data.y;
+        }
+        updateCubePos(data.playerId, data.x, data.y);
+    });
+
+    socket.on('updateBackground', (imageData) => {
+        if(imageData) document.body.style.backgroundImage = `url('${imageData}')`;
+    });
+
+    socket.on('updatePlayerColor', (data) => {
+        if (playersDOM[data.id]) {
+            playersDOM[data.id].style.backgroundColor = data.color;
+        }
+        if (playersData[data.id]) {
+            playersData[data.id].color = data.color;
+        }
+    });
+
+    socket.on('playerDisconnected', (playerId) => {
+        if (playersDOM[playerId]) playersDOM[playerId].remove();
+        delete playersDOM[playerId]; 
+        delete playersData[playerId];
+    });
+
+    // --- UTILITAIRES ---
+    function createCube(id, info) {
+        const cube = document.createElement('div');
+        cube.classList.add('cube');
+        cube.id = id;
+        cube.style.backgroundColor = info.color;
+        cube.style.left = info.x + 'px';
+        cube.style.top = info.y + 'px';
+        document.body.appendChild(cube);
+        playersDOM[id] = cube;
+    }
+
+    function updateCubePos(id, x, y) {
+        const cube = playersDOM[id];
+        if (cube) { cube.style.left = x + 'px'; cube.style.top = y + 'px'; }
+    }
+
+    function checkClientCollision(newX, newY) {
+        for (const id in playersData) {
+            if (id !== myId) {
+                const other = playersData[id];
+                if (Math.abs(newX - other.x) < cubeSize && Math.abs(newY - other.y) < cubeSize) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // --- GESTION CLAVIER ---
+    document.addEventListener('keydown', (e) => { 
+        // Si on appuie sur H (et qu'on n'est pas en train d'écrire dans un input texte, même s'il n'y en a pas ici par sécurité)
+        if (e.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT') {
+            toggleUI();
+            return;
+        }
+
+        if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = true; 
+    });
+    
+    document.addEventListener('keyup', (e) => { 
+        if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = false; 
+    });
+
+    // --- BOUCLE DE JEU ---
+    setInterval(() => {
+        if (!myId) return;
+        let potentialX = myX; let potentialY = myY; let moved = false;
+
+        if (keysPressed.ArrowUp) { potentialY -= speed; moved = true; }
+        if (keysPressed.ArrowDown) { potentialY += speed; moved = true; }
+        if (keysPressed.ArrowLeft) { potentialX -= speed; moved = true; }
+        if (keysPressed.ArrowRight) { potentialX += speed; moved = true; }
+
+        if (moved) {
+            const maxX = window.innerWidth - cubeSize;
+            const maxY = window.innerHeight - cubeSize;
+            if (potentialX < 0) potentialX = 0;
+            if (potentialX > maxX) potentialX = maxX;
+            if (potentialY < 0) potentialY = 0;
+            if (potentialY > maxY) potentialY = maxY;
+
+            if (!checkClientCollision(potentialX, potentialY)) {
+                myX = potentialX; myY = potentialY;
+                updateCubePos(myId, myX, myY);
+                socket.emit('playerMovement', { x: myX, y: myY });
+            }
+        }
+    }, 20);
+</script>
+</body>
+</html>
