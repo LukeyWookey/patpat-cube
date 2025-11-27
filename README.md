@@ -56,7 +56,7 @@ npx nodemon server.js
 **Testé**
 - Vous pouvez tester le jeux directement sur se [site](https://cube.patpat-web.uk/)
 
-**RGB**
+**RGB (in console)**
 ```js
 let color = true;    
 
