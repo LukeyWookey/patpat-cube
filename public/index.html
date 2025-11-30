@@ -65,7 +65,7 @@
 <button id="toggle-btn" onclick="toggleUI()">Menu (H)</button>
 
 <div id="ui-container">
-    <label><strong>Changer le fond (Max 3 Mo) :</strong></label>
+    <label><strong>Changer le fond (Max 100 Mo) :</strong></label>
     <input type="file" id="fileInput" accept="image/*">
     <button onclick="uploadImage()">Envoyer l'image</button>
     
@@ -81,19 +81,83 @@
     <div style="margin-top:5px; font-size:11px; color:red;">Le joueur avec le bord ROUGE est le loup !</div>
 </div>
 
-<script src="/socket.io/socket.io.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
 <script>
     const socket = io();
     const playersDOM = {};
     const playersData = {};
-    const speed = 15; 
     const cubeSize = 50;
-    
+
     let myId = null;
-    let myX = 0; let myY = 0;
-    let currentWolfId = null; // [NOUVEAU]
-    
+    let myX = 0, myY = 0;
+    let currentWolfId = null;
+
     const keysPressed = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+
+    // Movement speed in pixels per second (kept similar to previous feel)
+    const speedPerSec = 750;
+
+    // Networking throttling (ms)
+    const emitThrottleMs = 50;
+    let lastEmitTime = 0;
+
+    // Tag cooldown (ms)
+    const tagCooldownMs = 3000;
+    let lastTagTime = 0;
+
+    // Interpolation settings
+    const interpDelay = 100; // ms to lag behind server time for smoothing
+
+    // Canvas for simple particle effects
+    let fxCanvas, fxCtx, fxParticles = [];
+
+    function initFxCanvas() {
+        fxCanvas = document.createElement('canvas');
+        fxCanvas.id = 'fx-canvas';
+        fxCanvas.style.position = 'fixed';
+        fxCanvas.style.left = '0'; fxCanvas.style.top = '0';
+        fxCanvas.style.width = '100%'; fxCanvas.style.height = '100%';
+        fxCanvas.style.pointerEvents = 'none';
+        fxCanvas.width = window.innerWidth;
+        fxCanvas.height = window.innerHeight;
+        document.body.appendChild(fxCanvas);
+        fxCtx = fxCanvas.getContext('2d');
+        window.addEventListener('resize', () => {
+            fxCanvas.width = window.innerWidth;
+            fxCanvas.height = window.innerHeight;
+        });
+        requestAnimationFrame(stepFx);
+    }
+
+    function spawnParticles(x, y, color = '#fff', count = 20) {
+        for (let i = 0; i < count; i++) {
+            fxParticles.push({
+                x, y,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 0.5) * 6,
+                life: 800 + Math.random() * 400,
+                born: performance.now(),
+                color,
+            });
+        }
+    }
+
+    function stepFx(ts) {
+        fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+        const now = performance.now();
+        fxParticles = fxParticles.filter(p => (now - p.born) < p.life);
+        for (const p of fxParticles) {
+            const age = (now - p.born) / p.life;
+            p.x += p.vx;
+            p.y += p.vy;
+            fxCtx.globalAlpha = 1 - age;
+            fxCtx.fillStyle = p.color;
+            fxCtx.beginPath();
+            fxCtx.arc(p.x, p.y, 2 + (1 - age) * 3, 0, Math.PI * 2);
+            fxCtx.fill();
+        }
+        requestAnimationFrame(stepFx);
+    }
 
     function toggleUI() {
         const ui = document.getElementById('ui-container');
@@ -140,34 +204,39 @@
 
     socket.on('currentPlayers', (serverPlayers) => {
         Object.keys(serverPlayers).forEach((id) => {
-            playersData[id] = serverPlayers[id];
-            if (!playersDOM[id]) createCube(id, serverPlayers[id]);
-            
+            // initialize positions with server values and display positions
+            const info = serverPlayers[id];
+            playersData[id] = {
+                serverX: info.x,
+                serverY: info.y,
+                displayX: info.x,
+                displayY: info.y,
+                color: info.color,
+                lastUpdate: Date.now()
+            };
+            if (!playersDOM[id]) createCube(id, info);
+
             if (id === socket.id) {
                 myId = id; 
-                myX = serverPlayers[id].x; 
-                myY = serverPlayers[id].y;
-                document.getElementById('colorInput').value = serverPlayers[id].color;
-            } else {
-                updateCubePos(id, serverPlayers[id].x, serverPlayers[id].y);
+                myX = info.x; myY = info.y;
+                document.getElementById('colorInput').value = info.color;
             }
         });
-        // Appliquer l'effet visuel du loup si on l'a déjà reçu
         updateWolfVisuals();
     });
 
     socket.on('newPlayer', (data) => {
-        playersData[data.playerId] = data.playerInfo;
-        createCube(data.playerId, data.playerInfo);
+        const info = data.playerInfo;
+        playersData[data.playerId] = { serverX: info.x, serverY: info.y, displayX: info.x, displayY: info.y, color: info.color, lastUpdate: Date.now() };
+        createCube(data.playerId, info);
         updateWolfVisuals();
     });
-    
+
     socket.on('playerMoved', (data) => {
-        if (playersData[data.playerId]) {
-            playersData[data.playerId].x = data.x;
-            playersData[data.playerId].y = data.y;
-        }
-        updateCubePos(data.playerId, data.x, data.y);
+        if (!playersData[data.playerId]) return;
+        playersData[data.playerId].serverX = data.x;
+        playersData[data.playerId].serverY = data.y;
+        playersData[data.playerId].lastUpdate = Date.now();
     });
 
     socket.on('updateBackground', (imageData) => {
@@ -184,66 +253,100 @@
     });
 
     socket.on('playerDisconnected', (playerId) => {
-        if (playersDOM[playerId]) playersDOM[playerId].remove();
-        delete playersDOM[playerId]; 
-        delete playersData[playerId];
+        if (playersDOM[playerId]) playersDOM[playerId].classList.add('despawn');
+        setTimeout(() => {
+            if (playersDOM[playerId]) playersDOM[playerId].remove();
+            delete playersDOM[playerId]; 
+            delete playersData[playerId];
+        }, 300);
     });
 
-    // --- [NOUVEAU] RECEPTION DU LOUP ---
     socket.on('updateWolf', (wolfId) => {
         currentWolfId = wolfId;
         updateWolfVisuals();
     });
 
     function updateWolfVisuals() {
-        // Enlève la classe wolf partout
         for (let id in playersDOM) {
             playersDOM[id].classList.remove('wolf');
-            playersDOM[id].innerText = ""; // Retire le texte
+            playersDOM[id].innerText = "";
         }
-        // Ajoute la classe au loup actuel
         if (currentWolfId && playersDOM[currentWolfId]) {
             playersDOM[currentWolfId].classList.add('wolf');
-            playersDOM[currentWolfId].innerText = "LOUP"; // Petit texte pour identifier
+            playersDOM[currentWolfId].innerText = "LOUP";
         }
     }
 
-    // --- UTILITAIRES ---
+    // NOTE: wolf timer UI removed per request
+
     function createCube(id, info) {
         const cube = document.createElement('div');
         cube.classList.add('cube');
         cube.id = id;
         cube.style.backgroundColor = info.color;
-        cube.style.left = info.x + 'px';
-        cube.style.top = info.y + 'px';
+        // use transform for GPU-accelerated movement
+        cube.style.transform = `translate3d(${info.x}px, ${info.y}px, 0)`;
+        cube.style.opacity = '0';
         document.body.appendChild(cube);
         playersDOM[id] = cube;
+        // fade-in
+        requestAnimationFrame(() => { cube.style.transition = 'opacity 300ms'; cube.style.opacity = '1'; });
     }
 
-    function updateCubePos(id, x, y) {
+    function updateCubePosDOM(id, x, y) {
         const cube = playersDOM[id];
-        if (cube) { cube.style.left = x + 'px'; cube.style.top = y + 'px'; }
+        if (cube) cube.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     }
 
-    function checkClientCollision(newX, newY) {
+    // Rectangle-based hitbox (same size as cube) + gentle axis-aligned repulsion
+    function resolveCollisionsAndTag(newX, newY) {
         for (const id in playersData) {
-            if (id !== myId) {
-                const other = playersData[id];
-                // Vérification de collision simple
-                if (Math.abs(newX - other.x) < cubeSize && Math.abs(newY - other.y) < cubeSize) {
-                    
-                    // [NOUVEAU] Logique du loup
-                    // Si je suis le loup et que je touche quelqu'un d'autre
-                    if (myId === currentWolfId) {
-                        console.log("Touché ! Transmisson du loup à", id);
-                        socket.emit('tagPlayer', id);
+            if (id === myId) continue;
+            const other = playersData[id];
+            const ox = other.displayX !== undefined ? other.displayX : other.serverX;
+            const oy = other.displayY !== undefined ? other.displayY : other.serverY;
+
+            const myLeft = newX;
+            const myRight = newX + cubeSize;
+            const myTop = newY;
+            const myBottom = newY + cubeSize;
+
+            const otherLeft = ox;
+            const otherRight = ox + cubeSize;
+            const otherTop = oy;
+            const otherBottom = oy + cubeSize;
+
+            const overlapX = Math.min(myRight, otherRight) - Math.max(myLeft, otherLeft);
+            const overlapY = Math.min(myBottom, otherBottom) - Math.max(myTop, otherTop);
+
+            if (overlapX > 0 && overlapY > 0) {
+                // collision detected (rectangles of same size)
+                // If I'm the wolf and cooldown passed, tag
+                if (myId === currentWolfId && (Date.now() - lastTagTime) > tagCooldownMs) {
+                    lastTagTime = Date.now();
+                    socket.emit('tagPlayer', id);
+                    spawnParticles(ox + cubeSize / 2, oy + cubeSize / 2, playersData[id].color || '#fff');
+                }
+
+                // gentle repulsion along the axis of least penetration
+                if (overlapX < overlapY) {
+                    // push in X
+                    if (myLeft < otherLeft) {
+                        newX -= (overlapX + 1);
+                    } else {
+                        newX += (overlapX + 1);
                     }
-                    
-                    return true; // Bloque le mouvement (comme avant)
+                } else {
+                    // push in Y
+                    if (myTop < otherTop) {
+                        newY -= (overlapY + 1);
+                    } else {
+                        newY += (overlapY + 1);
+                    }
                 }
             }
         }
-        return false;
+        return { x: newX, y: newY };
     }
 
     document.addEventListener('keydown', (e) => { 
@@ -258,16 +361,22 @@
         if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = false; 
     });
 
-    setInterval(() => {
-        if (!myId) return;
-        let potentialX = myX; let potentialY = myY; let moved = false;
+    // Animation loop with interpolation for remote players and movement for local player
+    let lastFrameTime = performance.now();
+    function animate(now) {
+        const dt = now - lastFrameTime;
+        lastFrameTime = now;
 
-        if (keysPressed.ArrowUp) { potentialY -= speed; moved = true; }
-        if (keysPressed.ArrowDown) { potentialY += speed; moved = true; }
-        if (keysPressed.ArrowLeft) { potentialX -= speed; moved = true; }
-        if (keysPressed.ArrowRight) { potentialX += speed; moved = true; }
+        if (myId) {
+            let potentialX = myX;
+            let potentialY = myY;
+            let moved = false;
+            const step = speedPerSec * (dt / 1000);
+            if (keysPressed.ArrowUp) { potentialY -= step; moved = true; }
+            if (keysPressed.ArrowDown) { potentialY += step; moved = true; }
+            if (keysPressed.ArrowLeft) { potentialX -= step; moved = true; }
+            if (keysPressed.ArrowRight) { potentialX += step; moved = true; }
 
-        if (moved) {
             const maxX = window.innerWidth - cubeSize;
             const maxY = window.innerHeight - cubeSize;
             if (potentialX < 0) potentialX = 0;
@@ -275,13 +384,44 @@
             if (potentialY < 0) potentialY = 0;
             if (potentialY > maxY) potentialY = maxY;
 
-            if (!checkClientCollision(potentialX, potentialY)) {
-                myX = potentialX; myY = potentialY;
-                updateCubePos(myId, myX, myY);
-                socket.emit('playerMovement', { x: myX, y: myY });
+            if (moved) {
+                // collision resolution + tagging handled here
+                const resolved = resolveCollisionsAndTag(potentialX, potentialY);
+                myX = resolved.x; myY = resolved.y;
+                updateCubePosDOM(myId, myX, myY);
+
+                // Throttle emits
+                if ((Date.now() - lastEmitTime) > emitThrottleMs) {
+                    lastEmitTime = Date.now();
+                    socket.emit('playerMovement', { x: Math.round(myX), y: Math.round(myY) });
+                }
             }
         }
-    }, 20);
+
+        // Interpolate remote players toward server positions
+        const nowTs = Date.now();
+        for (const id in playersData) {
+            if (id === myId) continue;
+            const p = playersData[id];
+            // if no server data, skip
+            if (p.serverX === undefined) continue;
+            // desired position lags server slightly for smoothness
+            const targetX = p.serverX;
+            const targetY = p.serverY;
+            // lerp display towards target with factor depending on dt
+            const lerpFactor = Math.min(1, (dt / 1000) * 10);
+            p.displayX = (p.displayX === undefined) ? targetX : p.displayX + (targetX - p.displayX) * lerpFactor;
+            p.displayY = (p.displayY === undefined) ? targetY : p.displayY + (targetY - p.displayY) * lerpFactor;
+            // apply to DOM
+            if (playersDOM[id]) updateCubePosDOM(id, p.displayX, p.displayY);
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    // Start fx and animation loop
+    initFxCanvas();
+    requestAnimationFrame(animate);
 </script>
 </body>
 </html>

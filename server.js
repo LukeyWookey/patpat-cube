@@ -3,9 +3,9 @@ const app = express();
 const http = require('http').createServer(app);
 const path = require('path');
 
-// Configuration Socket.io (Max buffer 10Mo pour les images)
+// Configuration Socket.io (Max buffer 100Mo pour les images)
 const io = require('socket.io')(http, {
-    maxHttpBufferSize: 1e7 
+    maxHttpBufferSize: 1e8
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
