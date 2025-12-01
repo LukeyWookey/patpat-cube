@@ -25,11 +25,10 @@
             display: flex; justify-content: center; align-items: center; font-weight: bold; color: white; text-shadow: 1px 1px 2px black;
         }
 
-        /* [NOUVEAU] Style pour le Loup */
         .wolf {
             border: 5px solid red !important;
             box-shadow: 0 0 20px red !important;
-            z-index: 100; /* Le loup passe au-dessus */
+            z-index: 100;
         }
         
         #toggle-btn {
@@ -94,19 +93,16 @@
 
     const keysPressed = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
 
-    // Movement speed in pixels per second (kept similar to previous feel)
+    // Movement speed in pixels per second
     const speedPerSec = 750;
 
-    // Networking throttling (ms)
-    const emitThrottleMs = 50;
+    // [MODIFICATION] Envoi plus rapide pour améliorer la sync (20ms au lieu de 50ms)
+    const emitThrottleMs = 20;
     let lastEmitTime = 0;
 
     // Tag cooldown (ms)
-    const tagCooldownMs = 3000;
+    const tagCooldownMs = 1000; // Réduit à 1s pour plus de réactivité
     let lastTagTime = 0;
-
-    // Interpolation settings
-    const interpDelay = 100; // ms to lag behind server time for smoothing
 
     // Canvas for simple particle effects
     let fxCanvas, fxCtx, fxParticles = [];
@@ -204,7 +200,6 @@
 
     socket.on('currentPlayers', (serverPlayers) => {
         Object.keys(serverPlayers).forEach((id) => {
-            // initialize positions with server values and display positions
             const info = serverPlayers[id];
             playersData[id] = {
                 serverX: info.x,
@@ -277,19 +272,15 @@
         }
     }
 
-    // NOTE: wolf timer UI removed per request
-
     function createCube(id, info) {
         const cube = document.createElement('div');
         cube.classList.add('cube');
         cube.id = id;
         cube.style.backgroundColor = info.color;
-        // use transform for GPU-accelerated movement
         cube.style.transform = `translate3d(${info.x}px, ${info.y}px, 0)`;
         cube.style.opacity = '0';
         document.body.appendChild(cube);
         playersDOM[id] = cube;
-        // fade-in
         requestAnimationFrame(() => { cube.style.transition = 'opacity 300ms'; cube.style.opacity = '1'; });
     }
 
@@ -298,7 +289,6 @@
         if (cube) cube.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     }
 
-    // Rectangle-based hitbox (same size as cube) + gentle axis-aligned repulsion
     function resolveCollisionsAndTag(newX, newY) {
         for (const id in playersData) {
             if (id === myId) continue;
@@ -320,29 +310,16 @@
             const overlapY = Math.min(myBottom, otherBottom) - Math.max(myTop, otherTop);
 
             if (overlapX > 0 && overlapY > 0) {
-                // collision detected (rectangles of same size)
-                // If I'm the wolf and cooldown passed, tag
                 if (myId === currentWolfId && (Date.now() - lastTagTime) > tagCooldownMs) {
                     lastTagTime = Date.now();
                     socket.emit('tagPlayer', id);
                     spawnParticles(ox + cubeSize / 2, oy + cubeSize / 2, playersData[id].color || '#fff');
                 }
 
-                // gentle repulsion along the axis of least penetration
                 if (overlapX < overlapY) {
-                    // push in X
-                    if (myLeft < otherLeft) {
-                        newX -= (overlapX + 1);
-                    } else {
-                        newX += (overlapX + 1);
-                    }
+                    if (myLeft < otherLeft) newX -= (overlapX + 1); else newX += (overlapX + 1);
                 } else {
-                    // push in Y
-                    if (myTop < otherTop) {
-                        newY -= (overlapY + 1);
-                    } else {
-                        newY += (overlapY + 1);
-                    }
+                    if (myTop < otherTop) newY -= (overlapY + 1); else newY += (overlapY + 1);
                 }
             }
         }
@@ -351,8 +328,7 @@
 
     document.addEventListener('keydown', (e) => { 
         if (e.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT') {
-            toggleUI();
-            return;
+            toggleUI(); return;
         }
         if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = true; 
     });
@@ -361,7 +337,6 @@
         if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = false; 
     });
 
-    // Animation loop with interpolation for remote players and movement for local player
     let lastFrameTime = performance.now();
     function animate(now) {
         const dt = now - lastFrameTime;
@@ -385,12 +360,10 @@
             if (potentialY > maxY) potentialY = maxY;
 
             if (moved) {
-                // collision resolution + tagging handled here
                 const resolved = resolveCollisionsAndTag(potentialX, potentialY);
                 myX = resolved.x; myY = resolved.y;
                 updateCubePosDOM(myId, myX, myY);
 
-                // Throttle emits
                 if ((Date.now() - lastEmitTime) > emitThrottleMs) {
                     lastEmitTime = Date.now();
                     socket.emit('playerMovement', { x: Math.round(myX), y: Math.round(myY) });
@@ -398,28 +371,22 @@
             }
         }
 
-        // Interpolate remote players toward server positions
-        const nowTs = Date.now();
         for (const id in playersData) {
             if (id === myId) continue;
             const p = playersData[id];
-            // if no server data, skip
             if (p.serverX === undefined) continue;
-            // desired position lags server slightly for smoothness
             const targetX = p.serverX;
             const targetY = p.serverY;
-            // lerp display towards target with factor depending on dt
+            // Interpolation pour lisser les positions distantes
             const lerpFactor = Math.min(1, (dt / 1000) * 10);
             p.displayX = (p.displayX === undefined) ? targetX : p.displayX + (targetX - p.displayX) * lerpFactor;
             p.displayY = (p.displayY === undefined) ? targetY : p.displayY + (targetY - p.displayY) * lerpFactor;
-            // apply to DOM
             if (playersDOM[id]) updateCubePosDOM(id, p.displayX, p.displayY);
         }
 
         requestAnimationFrame(animate);
     }
 
-    // Start fx and animation loop
     initFxCanvas();
     requestAnimationFrame(animate);
 </script>
