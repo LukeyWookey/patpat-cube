@@ -3,9 +3,9 @@ const app = express();
 const http = require('http').createServer(app);
 const path = require('path');
 
-// Configuration Socket.io
+// Configuration Socket.io (Max buffer 100Mo pour les images)
 const io = require('socket.io')(http, {
-    maxHttpBufferSize: 1e8 // 100Mo pour les images
+    maxHttpBufferSize: 1e8
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -14,29 +14,26 @@ let players = {};
 let currentBackground = null; 
 let wolfId = null; 
 
-// Configuration du jeu
-const CUBE_SIZE = 50; 
-// Marge de tolérance pour le lag (en pixels). 
-// Si le loup est à moins de (50 + 60) = 110px, le serveur accepte le tag.
-const TAG_TOLERANCE = 60; 
-const MAX_TAG_DIST_SQ = (CUBE_SIZE + TAG_TOLERANCE) ** 2; // Distance au carré pré-calculée pour performance
+// [NOUVEAU] Gestion du Cooldown pour éviter le "Tag-Back" immédiat
+let lastTagTime = 0;
+const TAG_COOLDOWN = 1000; // 1000ms = 1 seconde d'invincibilité après un tag
 
 io.on('connection', (socket) => {
     console.log('Nouveau joueur : ' + socket.id);
 
-    // Création du joueur avec position aléatoire
+    // Création du joueur
     players[socket.id] = {
         x: Math.floor(Math.random() * 500) + 50,
         y: Math.floor(Math.random() * 400) + 50,
         color: '#' + Math.floor(Math.random()*16777215).toString(16)
     };
 
-    // Si pas de loup, le nouveau le devient
+    // Si pas de loup, le nouveau devient le loup
     if (!wolfId) {
         wolfId = socket.id;
     }
 
-    // Initialisation du client
+    // Envoyer la liste des joueurs
     socket.emit('currentPlayers', players);
     socket.emit('updateWolf', wolfId);
 
@@ -54,7 +51,6 @@ io.on('connection', (socket) => {
         if (players[socket.id]) {
             players[socket.id].x = movementData.x;
             players[socket.id].y = movementData.y;
-            // On renvoie juste la nouvelle pos aux autres (léger)
             socket.broadcast.emit('playerMoved', { 
                 playerId: socket.id, 
                 x: players[socket.id].x, 
@@ -63,39 +59,31 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- GESTION DU LOUP (TAG) OPTIMISÉE ---
+    // --- [CORRIGÉ] GESTION DU LOUP (TAG) AVEC COOLDOWN ---
     socket.on('tagPlayer', (targetId) => {
-        const wolf = players[socket.id];
-        const target = players[targetId];
-
-        // 1. Vérifier que c'est bien le loup actuel qui demande le tag
-        // 2. Vérifier que la cible existe
-        if (socket.id === wolfId && target && wolf) {
+        // 1. Vérifier si le joueur est bien le loup actuel
+        if (socket.id === wolfId && players[targetId]) {
             
-            // Calcul de distance optimisé (sans racine carrée pour économiser le CPU)
-            const dx = wolf.x - target.x;
-            const dy = wolf.y - target.y;
-            const distSq = (dx * dx) + (dy * dy);
+            const now = Date.now();
 
-            // Vérification : est-ce qu'ils sont assez proches selon le SERVEUR ?
-            if (distSq <= MAX_TAG_DIST_SQ) {
-                // TAG VALIDÉ
-                wolfId = targetId; 
-                io.emit('updateWolf', wolfId); 
-            } else {
-                // TAG REFUSÉ (Le loup lag trop ou est trop loin sur le serveur)
-                // On ne fait rien, le jeu continue comme si le loup avait raté.
-                // console.log("Tag refusé pour cause de distance excessive");
+            // 2. [NOUVEAU] Vérifier si le délai de sécurité est passé
+            if (now - lastTagTime > TAG_COOLDOWN) {
+                
+                wolfId = targetId; // Le touché devient le loup
+                lastTagTime = now; // On enregistre l'heure du tag
+                
+                io.emit('updateWolf', wolfId); // On prévient tout le monde
             }
         }
     });
 
-    // --- AUTRES ÉVÉNEMENTS ---
+    // --- GESTION DU FOND D'ÉCRAN ---
     socket.on('changeBackground', (imageData) => {
         currentBackground = imageData;
         io.emit('updateBackground', imageData);
     });
 
+    // --- GESTION DE LA COULEUR ---
     socket.on('changeColor', (newColor) => {
         if (players[socket.id]) {
             players[socket.id].color = newColor; 
@@ -106,16 +94,18 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- DÉCONNEXION ---
     socket.on('disconnect', () => {
         delete players[socket.id];
         io.emit('playerDisconnected', socket.id);
         
-        // Si le loup part, on en choisit un nouveau
+        // Si le loup part, on en désigne un autre au hasard
         if (socket.id === wolfId) {
             const ids = Object.keys(players);
             if (ids.length > 0) {
                 wolfId = ids[Math.floor(Math.random() * ids.length)];
                 io.emit('updateWolf', wolfId);
+                lastTagTime = Date.now(); // Petit cooldown pour le nouveau loup aléatoire
             } else {
                 wolfId = null;
             }
