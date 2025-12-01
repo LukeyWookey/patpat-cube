@@ -3,7 +3,7 @@ const app = express();
 const http = require('http').createServer(app);
 const path = require('path');
 
-// Configuration Socket.io (Max buffer 100Mo pour les images)
+// Configuration Socket.io
 const io = require('socket.io')(http, {
     maxHttpBufferSize: 1e8
 });
@@ -14,26 +14,23 @@ let players = {};
 let currentBackground = null; 
 let wolfId = null; 
 
-// [NOUVEAU] Gestion du Cooldown pour éviter le "Tag-Back" immédiat
+// Gestion du Cooldown
 let lastTagTime = 0;
-const TAG_COOLDOWN = 1000; // 1000ms = 1 seconde d'invincibilité après un tag
+const TAG_COOLDOWN = 1000; 
 
 io.on('connection', (socket) => {
     console.log('Nouveau joueur : ' + socket.id);
 
-    // Création du joueur
     players[socket.id] = {
         x: Math.floor(Math.random() * 500) + 50,
         y: Math.floor(Math.random() * 400) + 50,
         color: '#' + Math.floor(Math.random()*16777215).toString(16)
     };
 
-    // Si pas de loup, le nouveau devient le loup
     if (!wolfId) {
         wolfId = socket.id;
     }
 
-    // Envoyer la liste des joueurs
     socket.emit('currentPlayers', players);
     socket.emit('updateWolf', wolfId);
 
@@ -46,7 +43,6 @@ io.on('connection', (socket) => {
         playerInfo: players[socket.id] 
     });
 
-    // --- GESTION DES MOUVEMENTS ---
     socket.on('playerMovement', (movementData) => {
         if (players[socket.id]) {
             players[socket.id].x = movementData.x;
@@ -59,31 +55,46 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- [CORRIGÉ] GESTION DU LOUP (TAG) AVEC COOLDOWN ---
+    // --- GESTION DU LOUP ET DES PARTICULES ---
     socket.on('tagPlayer', (targetId) => {
-        // 1. Vérifier si le joueur est bien le loup actuel
         if (socket.id === wolfId && players[targetId]) {
             
             const now = Date.now();
+            const wolf = players[socket.id];
+            const target = players[targetId];
+            
+            const CUBE_SIZE = 50; 
+            const TOLERANCE = 40; 
 
-            // 2. [NOUVEAU] Vérifier si le délai de sécurité est passé
-            if (now - lastTagTime > TAG_COOLDOWN) {
-                
-                wolfId = targetId; // Le touché devient le loup
-                lastTagTime = now; // On enregistre l'heure du tag
-                
-                io.emit('updateWolf', wolfId); // On prévient tout le monde
+            const dx = Math.abs(wolf.x - target.x);
+            const dy = Math.abs(wolf.y - target.y);
+
+            const isCloseEnough = dx < (CUBE_SIZE + TOLERANCE) && dy < (CUBE_SIZE + TOLERANCE);
+
+            if (isCloseEnough) {
+                if (now - lastTagTime > TAG_COOLDOWN) {
+                    wolfId = targetId;
+                    lastTagTime = now;
+                    
+                    io.emit('updateWolf', wolfId);
+
+                    // [NOUVEAU] On dit à tout le monde de faire des particules !
+                    // On vise le centre du cube cible (x + taille/2)
+                    io.emit('playerTagged', {
+                        x: target.x + (CUBE_SIZE / 2),
+                        y: target.y + (CUBE_SIZE / 2),
+                        color: target.color
+                    });
+                }
             }
         }
     });
 
-    // --- GESTION DU FOND D'ÉCRAN ---
     socket.on('changeBackground', (imageData) => {
         currentBackground = imageData;
         io.emit('updateBackground', imageData);
     });
 
-    // --- GESTION DE LA COULEUR ---
     socket.on('changeColor', (newColor) => {
         if (players[socket.id]) {
             players[socket.id].color = newColor; 
@@ -94,18 +105,16 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- DÉCONNEXION ---
     socket.on('disconnect', () => {
         delete players[socket.id];
         io.emit('playerDisconnected', socket.id);
         
-        // Si le loup part, on en désigne un autre au hasard
         if (socket.id === wolfId) {
             const ids = Object.keys(players);
             if (ids.length > 0) {
                 wolfId = ids[Math.floor(Math.random() * ids.length)];
                 io.emit('updateWolf', wolfId);
-                lastTagTime = Date.now(); // Petit cooldown pour le nouveau loup aléatoire
+                lastTagTime = Date.now(); 
             } else {
                 wolfId = null;
             }
