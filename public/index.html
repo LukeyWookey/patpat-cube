@@ -2,27 +2,37 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Cube game</title>
+    <title>Cube Game - Tag</title>
     <style>
         body { 
-            margin: 0; 
-            overflow: hidden; 
+            margin: 0; overflow: hidden; 
             background-color: #222;
             background-repeat: no-repeat;
             background-position: center;
             background-size: contain; 
             font-family: Arial, sans-serif;
             transition: background-image 0.3s ease;
-            width: 100vw;
-            height: 100vh;
+            width: 100vw; height: 100vh;
         }
+        
+        /* Conteneur du jeu (pour appliquer le flou facilement) */
+        #game-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transition: filter 0.5s ease;
+        }
+        /* Classe pour flouter le fond */
+        .blurred {
+            filter: blur(8px) brightness(0.7);
+        }
+
         .cube {
             position: absolute; width: 50px; height: 50px;
             border: 2px solid rgba(255,255,255,0.5);
             box-sizing: border-box;
             box-shadow: 0px 0px 10px rgba(0,0,0,0.5);
             transition: background-color 0.2s, border 0.2s, box-shadow 0.2s;
-            display: flex; justify-content: center; align-items: center; font-weight: bold; color: white; text-shadow: 1px 1px 2px black;
+            display: flex; justify-content: center; align-items: center; 
+            font-weight: bold; color: white; text-shadow: 1px 1px 2px black;
         }
 
         .wolf {
@@ -31,17 +41,32 @@
             z-index: 100;
         }
         
-        #toggle-btn {
-            position: fixed; top: 10px; left: 10px;
-            z-index: 2000;
-            padding: 8px 12px;
-            background: #fff;
-            border: 2px solid #ccc;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
+        /* MENU D'ACCUEIL */
+        #menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 3000;
+            background: rgba(0, 0, 0, 0.4); /* Légèrement sombre */
+            transition: opacity 0.5s;
         }
+        #menu-overlay.hidden {
+            opacity: 0; pointer-events: none;
+        }
+        
+        #play-btn {
+            font-size: 2rem; padding: 20px 40px;
+            background: #4CAF50; color: white; border: none; border-radius: 10px;
+            cursor: pointer; box-shadow: 0 0 15px rgba(76, 175, 80, 0.6);
+            transition: transform 0.2s, background 0.2s;
+        }
+        #play-btn:hover { transform: scale(1.1); background: #45a049; }
 
+        /* UI JEU */
+        #toggle-btn {
+            position: fixed; top: 10px; left: 10px; z-index: 2000;
+            padding: 8px 12px; background: #fff; border: 2px solid #ccc; border-radius: 5px; cursor: pointer; font-weight: bold;
+            display: none; /* Caché tant qu'on ne joue pas */
+        }
         #ui-container {
             position: fixed; top: 50px; left: 10px;
             background: rgba(255, 255, 255, 0.9);
@@ -50,16 +75,23 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             transition: opacity 0.3s, visibility 0.3s;
             opacity: 1; visibility: visible;
+            display: none; /* Caché tant qu'on ne joue pas */
         }
-
-        #ui-container.hidden {
-            opacity: 0; visibility: hidden; pointer-events: none;
-        }
-
+        #ui-container.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+        
         button { cursor: pointer; padding: 5px 10px; }
     </style>
 </head>
 <body>
+
+<div id="game-layer" class="blurred">
+    </div>
+
+<div id="menu-overlay">
+    <h1 style="color:white; text-shadow:2px 2px 4px black; margin-bottom: 30px;">CUBE TAG</h1>
+    <button id="play-btn" onclick="joinGame()">JOUER</button>
+    <div id="afk-msg" style="color: red; margin-top: 20px; font-weight: bold; display: none;">Vous avez été exclu pour inactivité (AFK)</div>
+</div>
 
 <button id="toggle-btn" onclick="toggleUI()">Menu (H)</button>
 
@@ -67,15 +99,12 @@
     <label><strong>Changer le fond (Max 100 Mo) :</strong></label>
     <input type="file" id="fileInput" accept="image/*">
     <button onclick="uploadImage()">Envoyer l'image</button>
-    
     <hr style="width: 100%; border: 1px solid #ccc; margin: 5px 0;">
-
     <label><strong>Ma Couleur :</strong></label>
     <div style="display: flex; gap: 5px; align-items: center;">
         <input type="color" id="colorInput" value="#ff0000">
         <button onclick="changeColor()">Appliquer</button>
     </div>
-
     <div id="status" style="font-size: 12px; color: blue; margin-top: 5px;"></div>
     <div style="margin-top:5px; font-size:11px; color:red;">Le joueur avec le bord ROUGE est le loup !</div>
 </div>
@@ -90,31 +119,28 @@
     let myId = null;
     let myX = 0, myY = 0;
     let currentWolfId = null;
+    let isPlaying = false; // [NOUVEAU] État du joueur
 
     const keysPressed = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-
-    // Movement speed in pixels per second
     const speedPerSec = 750;
     const emitThrottleMs = 20;
     let lastEmitTime = 0;
-
-    // Tag cooldown (ms)
     const tagCooldownMs = 1000; 
     let lastTagTime = 0;
 
-    // Canvas for particles
     let fxCanvas, fxCtx, fxParticles = [];
+    const gameLayer = document.getElementById('game-layer');
 
+    // --- INITIALISATION FX ---
     function initFxCanvas() {
         fxCanvas = document.createElement('canvas');
-        fxCanvas.id = 'fx-canvas';
-        fxCanvas.style.position = 'fixed';
+        fxCanvas.style.position = 'absolute';
         fxCanvas.style.left = '0'; fxCanvas.style.top = '0';
         fxCanvas.style.width = '100%'; fxCanvas.style.height = '100%';
         fxCanvas.style.pointerEvents = 'none';
         fxCanvas.width = window.innerWidth;
         fxCanvas.height = window.innerHeight;
-        document.body.appendChild(fxCanvas);
+        gameLayer.appendChild(fxCanvas); // On l'ajoute au layer floutable
         fxCtx = fxCanvas.getContext('2d');
         window.addEventListener('resize', () => {
             fxCanvas.width = window.innerWidth;
@@ -122,97 +148,80 @@
         });
         requestAnimationFrame(stepFx);
     }
+    
+    // --- FONCTIONS DU JEU ---
+    function joinGame() {
+        document.getElementById('menu-overlay').classList.add('hidden');
+        document.getElementById('game-layer').classList.remove('blurred');
+        document.getElementById('toggle-btn').style.display = 'block';
+        document.getElementById('ui-container').style.display = 'flex';
+        document.getElementById('afk-msg').style.display = 'none';
+        
+        socket.emit('joinGame');
+        isPlaying = true;
+    }
 
-    function spawnParticles(x, y, color = '#fff', count = 20) {
-        for (let i = 0; i < count; i++) {
-            fxParticles.push({
-                x, y,
-                vx: (Math.random() - 0.5) * 6,
-                vy: (Math.random() - 0.5) * 6,
-                life: 800 + Math.random() * 400,
-                born: performance.now(),
-                color,
-            });
+    function returnToMenu(reason = "") {
+        isPlaying = false;
+        myId = null; // On oublie notre ID de jeu
+        
+        // Nettoyage visuel de notre propre cube s'il existe encore localement
+        // (Le serveur va envoyer un playerDisconnected, mais on force le nettoyage)
+        
+        // UI
+        document.getElementById('menu-overlay').classList.remove('hidden');
+        document.getElementById('game-layer').classList.add('blurred');
+        document.getElementById('toggle-btn').style.display = 'none';
+        document.getElementById('ui-container').style.display = 'none';
+        document.getElementById('ui-container').classList.remove('hidden'); // Reset pour la prochaine fois
+
+        if (reason === 'afk') {
+            document.getElementById('afk-msg').style.display = 'block';
         }
     }
 
-    function stepFx(ts) {
-        fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
-        const now = performance.now();
-        fxParticles = fxParticles.filter(p => (now - p.born) < p.life);
-        for (const p of fxParticles) {
-            const age = (now - p.born) / p.life;
-            p.x += p.vx;
-            p.y += p.vy;
-            fxCtx.globalAlpha = 1 - age;
-            fxCtx.fillStyle = p.color;
-            fxCtx.beginPath();
-            fxCtx.arc(p.x, p.y, 2 + (1 - age) * 3, 0, Math.PI * 2);
-            fxCtx.fill();
-        }
-        requestAnimationFrame(stepFx);
-    }
+    // --- SOCKET EVENTS ---
+    
+    // À la connexion, on est juste spectateur. On ne reçoit notre ID que via 'gameJoined'
+    socket.on('gameJoined', (data) => {
+        myId = data.id;
+        const info = data.info;
+        myX = info.x; myY = info.y;
+        document.getElementById('colorInput').value = info.color;
+        
+        // On crée notre cube immédiatement
+        playersData[myId] = { 
+            serverX: info.x, serverY: info.y, 
+            displayX: info.x, displayY: info.y, 
+            color: info.color 
+        };
+        createCube(myId, info);
+    });
 
-    function toggleUI() {
-        const ui = document.getElementById('ui-container');
-        ui.classList.toggle('hidden');
-        document.body.focus();
-    }
-
-    function uploadImage() {
-        const statusDiv = document.getElementById('status');
-        const fileInput = document.getElementById('fileInput');
-        const file = fileInput.files[0];
-        if (file) {
-            if (file.size > 3 * 1024 * 1024) {
-                alert("Image trop lourde ! (Max 3 Mo).");
-                return;
-            }
-            statusDiv.innerText = "Envoi en cours...";
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                socket.emit('changeBackground', e.target.result);
-                statusDiv.innerText = "Image envoyée !";
-                fileInput.value = ''; 
-                setTimeout(() => { statusDiv.innerText = ""; }, 3000);
-            };
-            reader.readAsDataURL(file);
-            fileInput.blur(); 
-        } else {
-            alert("Sélectionne un fichier d'abord !");
-        }
-    }
-
-    function changeColor() {
-        const colorInput = document.getElementById('colorInput');
-        const newColor = colorInput.value;
-        socket.emit('changeColor', newColor);
-        document.getElementById('status').innerText = "Couleur changée !";
-        setTimeout(() => { document.getElementById('status').innerText = ""; }, 2000);
-        document.body.focus(); 
-    }
-
-    socket.on('connect', () => console.log('Connecté !'));
-    socket.on('disconnect', () => console.log('Déconnecté...'));
+    socket.on('afkKicked', () => {
+        returnToMenu('afk');
+    });
 
     socket.on('currentPlayers', (serverPlayers) => {
+        // Mise à jour de tous les cubes
         Object.keys(serverPlayers).forEach((id) => {
+            // Si je suis en train de jouer et que c'est moi, j'ignore (mon client gère ma pos)
+            if (isPlaying && id === myId) return;
+
             const info = serverPlayers[id];
             playersData[id] = {
                 serverX: info.x, serverY: info.y,
-                displayX: info.x, displayY: info.y,
+                displayX: (playersData[id]?.displayX || info.x), 
+                displayY: (playersData[id]?.displayY || info.y),
                 color: info.color, lastUpdate: Date.now()
             };
             if (!playersDOM[id]) createCube(id, info);
-            if (id === socket.id) {
-                myId = id; myX = info.x; myY = info.y;
-                document.getElementById('colorInput').value = info.color;
-            }
         });
         updateWolfVisuals();
     });
 
     socket.on('newPlayer', (data) => {
+        if (data.playerId === myId) return; // Déjà géré
         const info = data.playerInfo;
         playersData[data.playerId] = { serverX: info.x, serverY: info.y, displayX: info.x, displayY: info.y, color: info.color, lastUpdate: Date.now() };
         createCube(data.playerId, info);
@@ -249,10 +258,21 @@
         updateWolfVisuals();
     });
 
-    // [NOUVEAU] Réception de l'ordre de faire des particules
     socket.on('playerTagged', (data) => {
-        spawnParticles(data.x, data.y, data.color, 30); // 30 particules
+        spawnParticles(data.x, data.y, data.color, 30);
     });
+
+    // --- RENDERING & LOGIC ---
+
+    function createCube(id, info) {
+        const cube = document.createElement('div');
+        cube.classList.add('cube');
+        cube.id = id;
+        cube.style.backgroundColor = info.color;
+        cube.style.transform = `translate3d(${info.x}px, ${info.y}px, 0)`;
+        gameLayer.appendChild(cube); // On ajoute au game-layer
+        playersDOM[id] = cube;
+    }
 
     function updateWolfVisuals() {
         for (let id in playersDOM) {
@@ -265,98 +285,71 @@
         }
     }
 
-    function createCube(id, info) {
-        const cube = document.createElement('div');
-        cube.classList.add('cube');
-        cube.id = id;
-        cube.style.backgroundColor = info.color;
-        cube.style.transform = `translate3d(${info.x}px, ${info.y}px, 0)`;
-        cube.style.opacity = '0';
-        document.body.appendChild(cube);
-        playersDOM[id] = cube;
-        requestAnimationFrame(() => { cube.style.transition = 'opacity 300ms'; cube.style.opacity = '1'; });
-    }
-
-    function updateCubePosDOM(id, x, y) {
-        const cube = playersDOM[id];
-        if (cube) cube.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-    }
-
     function resolveCollisionsAndTag(newX, newY) {
+        // Collisions basiques
         for (const id in playersData) {
             if (id === myId) continue;
             const other = playersData[id];
-            const ox = other.displayX !== undefined ? other.displayX : other.serverX;
-            const oy = other.displayY !== undefined ? other.displayY : other.serverY;
+            // Si le joueur n'est pas encore affiché, on skip
+            if (other.displayX === undefined) continue;
 
-            const myLeft = newX;
-            const myRight = newX + cubeSize;
-            const myTop = newY;
-            const myBottom = newY + cubeSize;
+            const ox = other.displayX; 
+            const oy = other.displayY;
 
-            const otherLeft = ox;
-            const otherRight = ox + cubeSize;
-            const otherTop = oy;
-            const otherBottom = oy + cubeSize;
-
-            const overlapX = Math.min(myRight, otherRight) - Math.max(myLeft, otherLeft);
-            const overlapY = Math.min(myBottom, otherBottom) - Math.max(myTop, otherTop);
+            const overlapX = Math.min(newX + cubeSize, ox + cubeSize) - Math.max(newX, ox);
+            const overlapY = Math.min(newY + cubeSize, oy + cubeSize) - Math.max(newY, oy);
 
             if (overlapX > 0 && overlapY > 0) {
-                // On envoie juste la demande de tag, on ne fait pas les particules ici
+                // TAG LOGIC
                 if (myId === currentWolfId && (Date.now() - lastTagTime) > tagCooldownMs) {
                     lastTagTime = Date.now();
                     socket.emit('tagPlayer', id);
                 }
-
+                // COLLISION PHYSICS
                 if (overlapX < overlapY) {
-                    if (myLeft < otherLeft) newX -= (overlapX + 1); else newX += (overlapX + 1);
+                    if (newX < ox) newX -= (overlapX + 1); else newX += (overlapX + 1);
                 } else {
-                    if (myTop < otherTop) newY -= (overlapY + 1); else newY += (overlapY + 1);
+                    if (newY < oy) newY -= (overlapY + 1); else newY += (overlapY + 1);
                 }
             }
         }
         return { x: newX, y: newY };
     }
 
-    document.addEventListener('keydown', (e) => { 
-        if (e.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT') {
-            toggleUI(); return;
-        }
-        if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = true; 
-    });
-    
-    document.addEventListener('keyup', (e) => { 
-        if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = false; 
-    });
-
+    // --- ANIMATION LOOP ---
     let lastFrameTime = performance.now();
     function animate(now) {
         const dt = now - lastFrameTime;
         lastFrameTime = now;
 
-        if (myId) {
+        // 1. Déplacement de MON cube (seulement si je joue)
+        if (isPlaying && myId) {
             let potentialX = myX;
             let potentialY = myY;
             let moved = false;
             const step = speedPerSec * (dt / 1000);
+            
             if (keysPressed.ArrowUp) { potentialY -= step; moved = true; }
             if (keysPressed.ArrowDown) { potentialY += step; moved = true; }
             if (keysPressed.ArrowLeft) { potentialX -= step; moved = true; }
             if (keysPressed.ArrowRight) { potentialX += step; moved = true; }
 
+            // Limites écran
             const maxX = window.innerWidth - cubeSize;
             const maxY = window.innerHeight - cubeSize;
-            if (potentialX < 0) potentialX = 0;
-            if (potentialX > maxX) potentialX = maxX;
-            if (potentialY < 0) potentialY = 0;
-            if (potentialY > maxY) potentialY = maxY;
+            potentialX = Math.max(0, Math.min(potentialX, maxX));
+            potentialY = Math.max(0, Math.min(potentialY, maxY));
 
             if (moved) {
                 const resolved = resolveCollisionsAndTag(potentialX, potentialY);
                 myX = resolved.x; myY = resolved.y;
-                updateCubePosDOM(myId, myX, myY);
+                
+                // Mise à jour visuelle immédiate
+                if (playersDOM[myId]) {
+                    playersDOM[myId].style.transform = `translate3d(${myX}px, ${myY}px, 0)`;
+                }
 
+                // Envoi au serveur
                 if ((Date.now() - lastEmitTime) > emitThrottleMs) {
                     lastEmitTime = Date.now();
                     socket.emit('playerMovement', { x: Math.round(myX), y: Math.round(myY) });
@@ -364,23 +357,83 @@
             }
         }
 
+        // 2. Déplacement des AUTRES cubes (Interpolation)
         for (const id in playersData) {
-            if (id === myId) continue;
+            if (id === myId) continue; // On ne touche pas à notre cube ici
             const p = playersData[id];
-            if (p.serverX === undefined) continue;
+            
             const targetX = p.serverX;
             const targetY = p.serverY;
             
-            // Interpolation rapide
-            const lerpFactor = Math.min(1, (dt / 1000) * 20);
+            const lerpFactor = Math.min(1, (dt / 1000) * 15); // Interpolation fluide
             
             p.displayX = (p.displayX === undefined) ? targetX : p.displayX + (targetX - p.displayX) * lerpFactor;
             p.displayY = (p.displayY === undefined) ? targetY : p.displayY + (targetY - p.displayY) * lerpFactor;
-            if (playersDOM[id]) updateCubePosDOM(id, p.displayX, p.displayY);
+            
+            if (playersDOM[id]) {
+                playersDOM[id].style.transform = `translate3d(${p.displayX}px, ${p.displayY}px, 0)`;
+            }
         }
 
         requestAnimationFrame(animate);
     }
+
+    // --- FX (Particules) ---
+    function spawnParticles(x, y, color = '#fff', count = 20) {
+        for (let i = 0; i < count; i++) {
+            fxParticles.push({
+                x, y,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 0.5) * 6,
+                life: 800 + Math.random() * 400,
+                born: performance.now(),
+                color,
+            });
+        }
+    }
+    function stepFx(ts) {
+        fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+        const now = performance.now();
+        fxParticles = fxParticles.filter(p => (now - p.born) < p.life);
+        for (const p of fxParticles) {
+            const age = (now - p.born) / p.life;
+            p.x += p.vx;
+            p.y += p.vy;
+            fxCtx.globalAlpha = 1 - age;
+            fxCtx.fillStyle = p.color;
+            fxCtx.beginPath();
+            fxCtx.arc(p.x, p.y, 2 + (1 - age) * 3, 0, Math.PI * 2);
+            fxCtx.fill();
+        }
+        requestAnimationFrame(stepFx);
+    }
+
+    // --- UI HELPERS ---
+    function toggleUI() {
+        const ui = document.getElementById('ui-container');
+        ui.classList.toggle('hidden');
+        document.body.focus();
+    }
+    function uploadImage() {
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (e) => socket.emit('changeBackground', e.target.result);
+            reader.readAsDataURL(fileInput.files[0]);
+        }
+    }
+    function changeColor() {
+        socket.emit('changeColor', document.getElementById('colorInput').value);
+    }
+    
+    // Key listeners
+    document.addEventListener('keydown', (e) => { 
+        if (e.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT') toggleUI();
+        if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = true; 
+    });
+    document.addEventListener('keyup', (e) => { 
+        if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = false; 
+    });
 
     initFxCanvas();
     requestAnimationFrame(animate);
