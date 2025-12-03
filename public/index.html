@@ -68,6 +68,41 @@
             z-index: 4000; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             display: none;
         }
+
+        /* --- STYLES INPUT & ICONE SVG --- */
+        .password-wrapper {
+            position: relative;
+            width: 90%;
+            margin: 0 auto 10px auto;
+        }
+        .password-wrapper input {
+            width: 100%;
+            padding: 10px;
+            padding-right: 40px; /* Espace pour l'icône */
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        .eye-icon {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        .eye-icon:hover { opacity: 1; }
+        .eye-icon svg {
+            width: 100%;
+            height: 100%;
+            fill: #333;
+        }
     </style>
 </head>
 <body>
@@ -85,13 +120,27 @@
 
         <div id="form-login">
             <input type="text" id="loginPseudo" placeholder="Ton Pseudo" style="width: 90%; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <input type="password" id="loginPass" placeholder="Mot de passe" style="width: 90%; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ccc;">
+            
+            <div class="password-wrapper">
+                <input type="password" id="loginPass" placeholder="Mot de passe">
+                <div class="eye-icon" onclick="togglePass('loginPass', this)">
+                    <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                </div>
+            </div>
+
             <button onclick="doLogin()" style="width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold;">SE CONNECTER</button>
         </div>
 
         <div id="form-register" style="display:none;">
             <input type="text" id="regPseudo" placeholder="Nouveau Pseudo" maxlength="12" style="width: 90%; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <input type="password" id="regPass" placeholder="Mot de passe" style="width: 90%; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ccc;">
+            
+            <div class="password-wrapper">
+                <input type="password" id="regPass" placeholder="Mot de passe">
+                <div class="eye-icon" onclick="togglePass('regPass', this)">
+                    <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5 5-5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                </div>
+            </div>
+
             <button onclick="doRegister()" style="width: 100%; padding: 10px; background: #2196F3; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold;">CRÉER COMPTE</button>
         </div>
 
@@ -130,6 +179,7 @@
     let fxCanvas, fxCtx, fxParticles = [];
     const gameLayer = document.getElementById('game-layer');
 
+    // --- GESTION DE L'INTERFACE (ONGLETS) ---
     function showForm(type) {
         document.getElementById('auth-msg').innerText = "";
         if (type === 'login') {
@@ -149,12 +199,35 @@
         }
     }
 
+    // --- GESTION MOT DE PASSE (SVG) ---
+    // SVG Oeil Ouvert
+    const eyeOpenSVG = '<svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>';
+    // SVG Oeil Barré (Fermé)
+    const eyeOffSVG = '<svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>';
+
+    function togglePass(inputId, iconContainer) {
+        const input = document.getElementById(inputId);
+        if (input.type === "password") {
+            input.type = "text";
+            // Quand le texte est visible, on affiche l'icône barrée pour dire "cacher"
+            iconContainer.innerHTML = eyeOffSVG;
+        } else {
+            input.type = "password";
+            // Quand le texte est caché, on affiche l'icône oeil normal pour dire "voir"
+            iconContainer.innerHTML = eyeOpenSVG;
+        }
+    }
+
+    // --- CONNEXION ---
     async function doLogin() {
         const pseudo = document.getElementById('loginPseudo').value;
         const pass = document.getElementById('loginPass').value;
         const msg = document.getElementById('auth-msg');
+
         if (!pseudo || !pass) { msg.innerText = "Champs manquants !"; msg.style.color = "orange"; return; }
+
         msg.innerText = "Connexion...";
+        
         try {
             const res = await fetch('/api/login', {
                 method: 'POST',
@@ -162,17 +235,31 @@
                 body: JSON.stringify({ pseudo, password: pass })
             });
             const data = await res.json();
-            if (data.success) { msg.innerText = "Succès !"; msg.style.color = "green"; launchGame(data.pseudo); }
-            else { msg.innerText = data.message; msg.style.color = "red"; }
-        } catch (e) { msg.innerText = "Erreur serveur"; msg.style.color = "red"; }
+
+            if (data.success) {
+                msg.innerText = "Succès !";
+                msg.style.color = "green";
+                launchGame(data.pseudo);
+            } else {
+                msg.innerText = data.message;
+                msg.style.color = "red";
+            }
+        } catch (e) {
+            msg.innerText = "Erreur serveur";
+            msg.style.color = "red";
+        }
     }
 
+    // --- INSCRIPTION ---
     async function doRegister() {
         const pseudo = document.getElementById('regPseudo').value;
         const pass = document.getElementById('regPass').value;
         const msg = document.getElementById('auth-msg');
+
         if (!pseudo || !pass) { msg.innerText = "Champs manquants !"; msg.style.color = "orange"; return; }
-        msg.innerText = "Création...";
+
+        msg.innerText = "Création du compte...";
+
         try {
             const res = await fetch('/api/register', {
                 method: 'POST',
@@ -180,47 +267,41 @@
                 body: JSON.stringify({ pseudo, password: pass })
             });
             const data = await res.json();
+
             if (data.success) {
-                msg.innerText = "Compte créé !"; msg.style.color = "green";
-                showForm('login'); document.getElementById('loginPseudo').value = pseudo;
-            } else { msg.innerText = data.message; msg.style.color = "red"; }
-        } catch (e) { msg.innerText = "Erreur serveur"; msg.style.color = "red"; }
+                msg.innerText = "Compte créé ! Connecte-toi maintenant.";
+                msg.style.color = "green";
+                showForm('login');
+                document.getElementById('loginPseudo').value = pseudo;
+            } else {
+                msg.innerText = data.message;
+                msg.style.color = "red";
+            }
+        } catch (e) {
+            msg.innerText = "Erreur serveur";
+            msg.style.color = "red";
+        }
     }
 
-    function joinGameAsGuest() { launchGame(""); }
+    // --- INVITE ---
+    function joinGameAsGuest() {
+        launchGame("");
+    }
 
-    // --- CORRECTION MAJEURE ICI ---
+    // --- LANCEMENT DU JEU ---
     function launchGame(pseudo) {
-        // Reset UI
         document.getElementById('menu-overlay').classList.add('hidden');
         document.getElementById('game-layer').classList.remove('blurred');
         document.getElementById('toggle-btn').style.display = 'block';
         document.getElementById('ui-container').style.display = 'flex';
         document.getElementById('afk-msg').style.display = 'none';
-
-        // VERIFICATION DE LA CONNEXION
-        if (socket.connected) {
-            // Si déjà connecté, on envoie direct
-            socket.emit('joinGame', pseudo);
-            isPlaying = true;
-        } else {
-            // Si déconnecté (ex: après un kick), on reconnecte d'abord
-            console.log("Socket déconnecté, tentative de reconnexion...");
-            socket.connect(); 
-            
-            // On attend que la connexion soit établie avant d'envoyer joinGame
-            socket.once('connect', () => {
-                console.log("Reconnecté ! Envoi des infos...");
-                socket.emit('joinGame', pseudo);
-                isPlaying = true;
-            });
-        }
+        
+        socket.emit('joinGame', pseudo);
+        isPlaying = true;
     }
 
     function returnToMenu(reason = "") {
         isPlaying = false; myId = null;
-        
-        // NETTOYAGE COMPLET DES CUBES
         for (let id in playersDOM) { playersDOM[id].remove(); }
         playersDOM = {};
         playersData = {};
@@ -265,8 +346,6 @@
     });
 
     socket.on('afkKicked', () => returnToMenu('afk'));
-
-    // SECURITE : Si déconnecté, retour menu immédiat
     socket.on('disconnect', () => { if (isPlaying) returnToMenu(); });
     
     socket.on('currentPlayers', (serverPlayers) => {
@@ -305,7 +384,7 @@
     socket.on('playerTagged', (data) => { spawnParticles(data.x, data.y, data.color, 30); });
 
     function createCube(id, info) {
-        if (playersDOM[id]) return; // Evite doublons
+        if (playersDOM[id]) return; 
         const cube = document.createElement('div');
         cube.classList.add('cube'); cube.id = id;
         cube.style.backgroundColor = info.color;
