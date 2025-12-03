@@ -2,8 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cube Game</title>
+    <title>Cube Game - Tag</title>
     <style>
         body { 
             margin: 0; overflow: hidden; 
@@ -15,15 +14,11 @@
             transition: background-image 0.3s ease;
             width: 100vw; height: 100vh;
         }
-        
-        /* Calque de Jeu */
         #game-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             transition: filter 0.5s ease;
         }
         .blurred { filter: blur(8px) brightness(0.7); }
-
-        /* Styles des Cubes */
         .cube {
             position: absolute; width: 50px; height: 50px;
             border: 2px solid rgba(255,255,255,0.5);
@@ -33,13 +28,35 @@
             display: flex; justify-content: center; align-items: center; 
             font-weight: bold; color: white; text-shadow: 1px 1px 2px black;
         }
+        
+        /* --- NOUVEAU CSS POUR LE PSEUDO AU SURVOL --- */
+        .cube::after {
+            content: attr(data-pseudo); /* Récupère le pseudo stocké */
+            position: absolute;
+            bottom: 120%; /* Juste au-dessus du cube */
+            left: 50%;
+            transform: translateX(-50%); /* Centré */
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0; /* Caché par défaut */
+            transition: opacity 0.2s;
+            z-index: 500;
+        }
+        .cube:hover::after {
+            opacity: 1; /* Visible quand on survole */
+        }
+        /* ------------------------------------------ */
+
         .wolf {
             border: 5px solid red !important;
             box-shadow: 0 0 20px red !important;
             z-index: 100;
         }
-
-        /* Lobby / Menu */
         #menu-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -47,7 +64,6 @@
             transition: opacity 0.5s;
         }
         #menu-overlay.hidden { opacity: 0; pointer-events: none; }
-        
         #play-btn {
             font-size: 2rem; padding: 20px 40px;
             background: #4CAF50; color: white; border: none; border-radius: 10px;
@@ -55,8 +71,7 @@
             transition: transform 0.2s, background 0.2s;
         }
         #play-btn:hover { transform: scale(1.1); background: #45a049; }
-
-        /* UI Jeu */
+        
         #toggle-btn {
             position: fixed; top: 10px; left: 10px; z-index: 2000;
             padding: 8px 12px; background: #fff; border: 2px solid #ccc; border-radius: 5px; cursor: pointer; font-weight: bold;
@@ -73,7 +88,7 @@
         #ui-container.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
         button { cursor: pointer; padding: 5px 10px; }
         
-        /* Messages Serveur */
+        /* Message Global */
         #global-msg {
             position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
             padding: 10px 20px; border-radius: 5px; color: white; font-weight: bold;
@@ -85,16 +100,20 @@
 <body>
 
 <div id="game-layer" class="blurred"></div>
+
 <div id="global-msg"></div>
 
 <div id="menu-overlay">
     <h1 style="color:white; text-shadow:2px 2px 4px black; margin-bottom: 30px;">CUBE TAG</h1>
+    
+    <input type="text" id="pseudoInput" placeholder="Ton Pseudo..." maxlength="12" 
+           style="padding: 10px; font-size: 1.2rem; border-radius: 10px; border: none; margin-bottom: 20px; text-align: center; width: 200px;">
+    
     <button id="play-btn" onclick="joinGame()">JOUER</button>
     <div id="afk-msg" style="color: red; margin-top: 20px; font-weight: bold; display: none;">Vous avez été exclu pour inactivité (AFK)</div>
 </div>
 
 <button id="toggle-btn" onclick="toggleUI()">Menu (H)</button>
-
 <div id="ui-container">
     <label><strong>Changer le fond :</strong></label>
     <div style="font-size: 10px; color: #555; margin-bottom: 5px;">(Cooldown: 15s)</div>
@@ -102,13 +121,11 @@
     <button onclick="uploadImage()">Envoyer l'image</button>
 
     <hr style="width: 100%; border: 1px solid #ccc; margin: 5px 0;">
-    
     <label><strong>Ma Couleur :</strong></label>
     <div style="display: flex; gap: 5px; align-items: center;">
         <input type="color" id="colorInput" value="#ff0000">
         <button onclick="changeColor()">Appliquer</button>
     </div>
-    
     <div id="status" style="font-size: 12px; color: blue; margin-top: 5px;"></div>
     <div style="margin-top:5px; font-size:11px; color:red;">Le joueur avec le bord ROUGE est le loup !</div>
 </div>
@@ -119,71 +136,52 @@
     const playersDOM = {};
     const playersData = {};
     const cubeSize = 50;
-    
-    let myId = null;
-    let myX = 0, myY = 0;
-    let currentWolfId = null;
-    let isPlaying = false;
-
-    // Contrôles
+    let myId = null, myX = 0, myY = 0, currentWolfId = null, isPlaying = false;
     const keysPressed = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-    const speedPerSec = 750;
-    const emitThrottleMs = 20; 
-    let lastEmitTime = 0;
-    
-    // Tag cooldown local (pour éviter spam socket)
-    const tagCooldownMs = 1000; 
-    let lastTagTime = 0;
-
-    // Particules
+    const speedPerSec = 750, emitThrottleMs = 20, tagCooldownMs = 1000;
+    let lastEmitTime = 0, lastTagTime = 0;
     let fxCanvas, fxCtx, fxParticles = [];
     const gameLayer = document.getElementById('game-layer');
 
-    // --- INITIALISATION ---
     function initFxCanvas() {
         fxCanvas = document.createElement('canvas');
         fxCanvas.style.position = 'absolute';
         fxCanvas.style.left = '0'; fxCanvas.style.top = '0';
         fxCanvas.style.width = '100%'; fxCanvas.style.height = '100%';
         fxCanvas.style.pointerEvents = 'none';
-        fxCanvas.width = window.innerWidth;
-        fxCanvas.height = window.innerHeight;
+        fxCanvas.width = window.innerWidth; fxCanvas.height = window.innerHeight;
         gameLayer.appendChild(fxCanvas);
         fxCtx = fxCanvas.getContext('2d');
-        window.addEventListener('resize', () => {
-            fxCanvas.width = window.innerWidth;
-            fxCanvas.height = window.innerHeight;
-        });
+        window.addEventListener('resize', () => { fxCanvas.width = window.innerWidth; fxCanvas.height = window.innerHeight; });
         requestAnimationFrame(stepFx);
     }
     
-    // --- GESTION DU LOBBY ---
     function joinGame() {
+        // --- RECUPERATION DU PSEUDO ---
+        const input = document.getElementById('pseudoInput');
+        const pseudo = input.value; // On envoie tel quel, le serveur gère le reste
+
         document.getElementById('menu-overlay').classList.add('hidden');
         document.getElementById('game-layer').classList.remove('blurred');
         document.getElementById('toggle-btn').style.display = 'block';
         document.getElementById('ui-container').style.display = 'flex';
         document.getElementById('afk-msg').style.display = 'none';
-        socket.emit('joinGame');
+        
+        // Envoi de l'event joinGame avec le pseudo
+        socket.emit('joinGame', pseudo);
         isPlaying = true;
     }
 
     function returnToMenu(reason = "") {
-        isPlaying = false; 
-        myId = null;
-        
+        isPlaying = false; myId = null;
         document.getElementById('menu-overlay').classList.remove('hidden');
         document.getElementById('game-layer').classList.add('blurred');
         document.getElementById('toggle-btn').style.display = 'none';
         document.getElementById('ui-container').style.display = 'none';
         document.getElementById('ui-container').classList.remove('hidden'); 
-        
-        if (reason === 'afk') {
-            document.getElementById('afk-msg').style.display = 'block';
-        }
+        if (reason === 'afk') document.getElementById('afk-msg').style.display = 'block';
     }
 
-    // --- SOCKETS ---
     socket.on('uploadError', (message) => {
         alert("⛔ " + message);
         document.getElementById('status').innerText = message;
@@ -192,32 +190,25 @@
     socket.on('serverMessage', (data) => {
         const msgDiv = document.getElementById('global-msg');
         msgDiv.innerText = data.text;
-        msgDiv.style.backgroundColor = data.color === 'red' ? 'rgba(255, 0, 0, 0.9)' : 'rgba(0, 150, 0, 0.9)';
+        msgDiv.style.backgroundColor = data.color === 'red' ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 128, 0, 0.8)';
         msgDiv.style.display = 'block';
         setTimeout(() => { msgDiv.style.display = 'none'; }, 4000);
     });
 
     socket.on('gameJoined', (data) => {
-        myId = data.id; 
-        const info = data.info;
+        myId = data.id; const info = data.info;
         myX = info.x; myY = info.y;
         document.getElementById('colorInput').value = info.color;
         playersData[myId] = { serverX: info.x, serverY: info.y, displayX: info.x, displayY: info.y, color: info.color };
         createCube(myId, info);
     });
-
     socket.on('afkKicked', () => returnToMenu('afk'));
-
+    
     socket.on('currentPlayers', (serverPlayers) => {
         Object.keys(serverPlayers).forEach((id) => {
             if (isPlaying && id === myId) return;
             const info = serverPlayers[id];
-            playersData[id] = { 
-                serverX: info.x, serverY: info.y, 
-                displayX: (playersData[id]?.displayX || info.x), 
-                displayY: (playersData[id]?.displayY || info.y),
-                color: info.color, lastUpdate: Date.now() 
-            };
+            playersData[id] = { serverX: info.x, serverY: info.y, displayX: (playersData[id]?.displayX || info.x), displayY: (playersData[id]?.displayY || info.y), color: info.color, lastUpdate: Date.now() };
             if (!playersDOM[id]) createCube(id, info);
         });
         updateWolfVisuals();
@@ -230,148 +221,87 @@
         createCube(data.playerId, info);
         updateWolfVisuals();
     });
-
     socket.on('playerMoved', (data) => {
         if (!playersData[data.playerId]) return;
         playersData[data.playerId].serverX = data.x;
         playersData[data.playerId].serverY = data.y;
         playersData[data.playerId].lastUpdate = Date.now();
     });
-
-    socket.on('updateBackground', (imageData) => {
-        if(imageData) document.body.style.backgroundImage = `url('${imageData}')`;
-    });
-
+    socket.on('updateBackground', (imageData) => { if(imageData) document.body.style.backgroundImage = `url('${imageData}')`; });
     socket.on('updatePlayerColor', (data) => {
         if (playersDOM[data.id]) playersDOM[data.id].style.backgroundColor = data.color;
         if (playersData[data.id]) playersData[data.id].color = data.color;
     });
-
     socket.on('playerDisconnected', (playerId) => {
         if (playersDOM[playerId]) playersDOM[playerId].classList.add('despawn');
-        setTimeout(() => { 
-            if (playersDOM[playerId]) playersDOM[playerId].remove(); 
-            delete playersDOM[playerId]; 
-            delete playersData[playerId]; 
-        }, 300);
+        setTimeout(() => { if (playersDOM[playerId]) playersDOM[playerId].remove(); delete playersDOM[playerId]; delete playersData[playerId]; }, 300);
     });
+    socket.on('updateWolf', (wolfId) => { currentWolfId = wolfId; updateWolfVisuals(); });
+    socket.on('playerTagged', (data) => { spawnParticles(data.x, data.y, data.color, 30); });
 
-    socket.on('updateWolf', (wolfId) => {
-        currentWolfId = wolfId;
-        updateWolfVisuals();
-    });
-
-    socket.on('playerTagged', (data) => {
-        spawnParticles(data.x, data.y, data.color, 30);
-    });
-
-    // --- GAME LOOP & LOGIC ---
     function createCube(id, info) {
         const cube = document.createElement('div');
-        cube.classList.add('cube'); 
-        cube.id = id;
+        cube.classList.add('cube'); cube.id = id;
         cube.style.backgroundColor = info.color;
         cube.style.transform = `translate3d(${info.x}px, ${info.y}px, 0)`;
+        
+        // --- AJOUT ATTRIBUT PSEUDO ---
+        if (info.pseudo) {
+            cube.setAttribute('data-pseudo', info.pseudo);
+        }
+        
         gameLayer.appendChild(cube);
         playersDOM[id] = cube;
     }
 
     function updateWolfVisuals() {
-        for (let id in playersDOM) {
-            playersDOM[id].classList.remove('wolf');
-            playersDOM[id].innerText = "";
-        }
-        if (currentWolfId && playersDOM[currentWolfId]) {
-            playersDOM[currentWolfId].classList.add('wolf');
-            playersDOM[currentWolfId].innerText = "LOUP";
-        }
+        for (let id in playersDOM) { playersDOM[id].classList.remove('wolf'); playersDOM[id].innerText = ""; }
+        if (currentWolfId && playersDOM[currentWolfId]) { playersDOM[currentWolfId].classList.add('wolf'); playersDOM[currentWolfId].innerText = "LOUP"; }
     }
-
     function resolveCollisionsAndTag(newX, newY) {
         for (const id in playersData) {
             if (id === myId) continue;
             const other = playersData[id];
             if (other.displayX === undefined) continue;
-
-            const overlapX = Math.min(newX + cubeSize, other.displayX + cubeSize) - Math.max(newX, other.displayX);
-            const overlapY = Math.min(newY + cubeSize, other.displayY + cubeSize) - Math.max(newY, other.displayY);
-
+            const ox = other.displayX, oy = other.displayY;
+            const overlapX = Math.min(newX + cubeSize, ox + cubeSize) - Math.max(newX, ox);
+            const overlapY = Math.min(newY + cubeSize, oy + cubeSize) - Math.max(newY, oy);
             if (overlapX > 0 && overlapY > 0) {
-                if (myId === currentWolfId && (Date.now() - lastTagTime) > tagCooldownMs) {
-                    lastTagTime = Date.now();
-                    socket.emit('tagPlayer', id);
-                }
-                if (overlapX < overlapY) {
-                    if (newX < other.displayX) newX -= (overlapX + 1); else newX += (overlapX + 1);
-                } else {
-                    if (newY < other.displayY) newY -= (overlapY + 1); else newY += (overlapY + 1);
-                }
+                if (myId === currentWolfId && (Date.now() - lastTagTime) > tagCooldownMs) { lastTagTime = Date.now(); socket.emit('tagPlayer', id); }
+                if (overlapX < overlapY) { if (newX < ox) newX -= (overlapX + 1); else newX += (overlapX + 1); } else { if (newY < oy) newY -= (overlapY + 1); else newY += (overlapY + 1); }
             }
         }
         return { x: newX, y: newY };
     }
-
-    let lastFrameTime = performance.now();
     function animate(now) {
-        const dt = now - lastFrameTime;
-        lastFrameTime = now;
-
+        const dt = now - lastFrameTime; lastFrameTime = now;
         if (isPlaying && myId) {
-            let potentialX = myX, potentialY = myY;
-            let moved = false;
+            let potentialX = myX, potentialY = myY, moved = false;
             const step = speedPerSec * (dt / 1000);
-
             if (keysPressed.ArrowUp) { potentialY -= step; moved = true; }
             if (keysPressed.ArrowDown) { potentialY += step; moved = true; }
             if (keysPressed.ArrowLeft) { potentialX -= step; moved = true; }
             if (keysPressed.ArrowRight) { potentialX += step; moved = true; }
-
-            const maxX = window.innerWidth - cubeSize;
-            const maxY = window.innerHeight - cubeSize;
-            potentialX = Math.max(0, Math.min(potentialX, maxX));
-            potentialY = Math.max(0, Math.min(potentialY, maxY));
-
+            const maxX = window.innerWidth - cubeSize, maxY = window.innerHeight - cubeSize;
+            potentialX = Math.max(0, Math.min(potentialX, maxX)); potentialY = Math.max(0, Math.min(potentialY, maxY));
             if (moved) {
                 const resolved = resolveCollisionsAndTag(potentialX, potentialY);
                 myX = resolved.x; myY = resolved.y;
-                
                 if (playersDOM[myId]) playersDOM[myId].style.transform = `translate3d(${myX}px, ${myY}px, 0)`;
-                
-                if ((Date.now() - lastEmitTime) > emitThrottleMs) {
-                    lastEmitTime = Date.now();
-                    socket.emit('playerMovement', { x: Math.round(myX), y: Math.round(myY) });
-                }
+                if ((Date.now() - lastEmitTime) > emitThrottleMs) { lastEmitTime = Date.now(); socket.emit('playerMovement', { x: Math.round(myX), y: Math.round(myY) }); }
             }
         }
-
-        // Interpolation autres joueurs
         for (const id in playersData) {
             if (id === myId) continue;
-            const p = playersData[id];
-            const lerpFactor = Math.min(1, (dt / 1000) * 15);
-            
+            const p = playersData[id], lerpFactor = Math.min(1, (dt / 1000) * 15);
             p.displayX = (p.displayX === undefined) ? p.serverX : p.displayX + (p.serverX - p.displayX) * lerpFactor;
             p.displayY = (p.displayY === undefined) ? p.serverY : p.displayY + (p.serverY - p.displayY) * lerpFactor;
-            
-            if (playersDOM[id]) {
-                playersDOM[id].style.transform = `translate3d(${p.displayX}px, ${p.displayY}px, 0)`;
-            }
+            if (playersDOM[id]) playersDOM[id].style.transform = `translate3d(${p.displayX}px, ${p.displayY}px, 0)`;
         }
         requestAnimationFrame(animate);
     }
-
-    // --- PARTICULES ---
     function spawnParticles(x, y, color = '#fff', count = 20) {
-        for (let i = 0; i < count; i++) {
-            fxParticles.push({
-                x, y,
-                vx: (Math.random() - 0.5) * 6,
-                vy: (Math.random() - 0.5) * 6,
-                life: 800 + Math.random() * 400,
-                born: performance.now(),
-                color
-            });
-        }
+        for (let i = 0; i < count; i++) fxParticles.push({ x, y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, life: 800 + Math.random() * 400, born: performance.now(), color });
     }
     function stepFx(ts) {
         fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
@@ -380,20 +310,12 @@
         for (const p of fxParticles) {
             const age = (now - p.born) / p.life;
             p.x += p.vx; p.y += p.vy;
-            fxCtx.globalAlpha = 1 - age;
-            fxCtx.fillStyle = p.color;
-            fxCtx.beginPath();
-            fxCtx.arc(p.x, p.y, 2 + (1 - age) * 3, 0, Math.PI * 2);
-            fxCtx.fill();
+            fxCtx.globalAlpha = 1 - age; fxCtx.fillStyle = p.color;
+            fxCtx.beginPath(); fxCtx.arc(p.x, p.y, 2 + (1 - age) * 3, 0, Math.PI * 2); fxCtx.fill();
         }
         requestAnimationFrame(stepFx);
     }
-
-    // --- UI EVENTS ---
-    function toggleUI() {
-        document.getElementById('ui-container').classList.toggle('hidden');
-        document.body.focus();
-    }
+    function toggleUI() { document.getElementById('ui-container').classList.toggle('hidden'); document.body.focus(); }
     
     function uploadImage() {
         const fileInput = document.getElementById('fileInput');
@@ -409,21 +331,11 @@
         }
     }
 
-    function changeColor() {
-        socket.emit('changeColor', document.getElementById('colorInput').value);
-    }
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT') toggleUI();
-        if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = true;
-    });
-    
-    document.addEventListener('keyup', (e) => {
-        if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = false;
-    });
-
-    initFxCanvas();
-    requestAnimationFrame(animate);
+    function changeColor() { socket.emit('changeColor', document.getElementById('colorInput').value); }
+    document.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT') toggleUI(); if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = true; });
+    document.addEventListener('keyup', (e) => { if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = false; });
+    let lastFrameTime = performance.now();
+    initFxCanvas(); requestAnimationFrame(animate);
 </script>
 </body>
 </html>
