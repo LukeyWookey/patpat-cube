@@ -7,6 +7,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
+const sharp = require('sharp'); // <--- AJOUTÉ : Pour optimiser les GIFs
 
 // --- CONNEXION MONGODB ---
 mongoose.connect(process.env.MONGO_URI)
@@ -153,7 +154,28 @@ io.on('connection', (socket) => {
 
         try {
             const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-            const imageBuffer = Buffer.from(base64Data, 'base64');
+            let imageBuffer = Buffer.from(base64Data, 'base64');
+
+            // --- [NOUVEAU] GESTION OPTIMISÉE DES GIFS ---
+            // On vérifie si les premiers octets correspondent à "GIF"
+            const isGif = imageBuffer.toString('ascii', 0, 3) === 'GIF';
+            
+            if (isGif) {
+                // 1. On lit les métadonnées pour savoir combien il y a de frames
+                const metadata = await sharp(imageBuffer).metadata();
+                const totalFrames = metadata.pages || 1;
+                
+                // 2. On choisit une frame au hasard
+                const randomFrameIndex = Math.floor(Math.random() * totalFrames);
+                console.log(`GIF détecté (${totalFrames} frames). Analyse frame n°${randomFrameIndex}.`);
+
+                // 3. On extrait UNIQUEMENT cette frame en PNG (Coût = 1 opération)
+                imageBuffer = await sharp(imageBuffer, { page: randomFrameIndex })
+                    .png()
+                    .toBuffer();
+            }
+            // --------------------------------------------
+
             const form = new FormData();
             form.append('media', imageBuffer, 'image.jpg');
             form.append('models', 'nudity'); 
@@ -172,11 +194,14 @@ io.on('connection', (socket) => {
                     socket.emit('uploadError', "Image interdite ! Bloqué 1 min.");
                 } else {
                     uploadCooldowns[socket.id] = now + COOLDOWN_NORMAL; 
+                    
+                    // Note : On envoie bien l'image originale (GIF complet) aux joueurs
                     currentBackground = imageData;
                     io.emit('updateBackground', imageData);
                 }
             }
         } catch (error) {
+            console.error("Erreur changeBackground:", error.message);
             socket.emit('uploadError', "Erreur analyse image.");
         }
     });
