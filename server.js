@@ -9,6 +9,9 @@ const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const sharp = require('sharp');
 
+// IMPORT CONFIG DEV
+const { ACHIEVEMENTS, SECRET_CODES } = require('./gameConfig');
+
 // --- CONNEXION MONGODB ---
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ Connecté à MongoDB'))
@@ -19,12 +22,17 @@ const UserSchema = new mongoose.Schema({
     pseudo: { type: String, unique: true, required: true },
     password: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
+    // Stats
     tagsInflicted: { type: Number, default: 0 },
     timesTagged: { type: Number, default: 0 },
     gamesJoined: { type: Number, default: 0 },
     distanceTraveled: { type: Number, default: 0 },
     backgroundsChanged: { type: Number, default: 0 },
-    currentSkin: { type: String, default: null }
+    // Customisation & Succès
+    currentSkin: { type: String, default: null },
+    achievements: { type: [String], default: [] }, 
+    unlockedSkins: { type: [String], default: [] },
+    redeemedCodes: { type: [String], default: [] } // Pour ne pas utiliser 2 fois le même code
 });
 const User = mongoose.model('User', UserSchema);
 
@@ -50,7 +58,36 @@ let lastTagTime = 0;
 const TAG_COOLDOWN = 1000; 
 let lastWolfMoveTime = Date.now();
 
-// --- ROUTES AUTHENTIFICATION ---
+// --- HELPER: VÉRIFIER SUCCÈS ---
+async function checkAchievements(user, socketId) {
+    let changed = false;
+    let newUnlocks = [];
+
+    for (const ach of ACHIEVEMENTS) {
+        if (!user.achievements.includes(ach.id)) {
+            if (ach.condition(user)) {
+                user.achievements.push(ach.id);
+                if (ach.rewardSkin && !user.unlockedSkins.includes(ach.rewardSkin)) {
+                    user.unlockedSkins.push(ach.rewardSkin);
+                }
+                newUnlocks.push(ach);
+                changed = true;
+            }
+        }
+    }
+
+    if (changed) {
+        await user.save();
+        if (socketId) {
+            newUnlocks.forEach(ach => {
+                io.to(socketId).emit('achievementUnlocked', { name: ach.name, desc: ach.desc });
+            });
+            io.to(socketId).emit('updateSkins', user.unlockedSkins);
+        }
+    }
+}
+
+// --- ROUTES API ---
 app.post('/api/register', async (req, res) => {
     const { pseudo, password } = req.body;
     if (!pseudo || !password) return res.json({ success: false, message: "Champs manquants." });
@@ -97,19 +134,41 @@ app.get('/api/leaderboard', async (req, res) => {
     } catch (e) { res.json({ success: false }); }
 });
 
-// --- HELPER: RETIRER JOUEUR DU JEU ---
+app.get('/api/my-achievements/:pseudo', async (req, res) => {
+    try {
+        const user = await User.findOne({ pseudo: req.params.pseudo });
+        if (!user) return res.json({ success: false });
+        
+        const list = ACHIEVEMENTS.map(ach => ({
+            id: ach.id,
+            name: ach.name,
+            desc: ach.desc,
+            skinName: ach.skinName,
+            rewardSkin: ach.rewardSkin,
+            unlocked: user.achievements.includes(ach.id)
+        }));
+        
+        res.json({ success: true, achievements: list, unlockedSkins: user.unlockedSkins });
+    } catch (e) { res.json({ success: false }); }
+});
+
+// --- HELPER: RETIRER JOUEUR ---
 async function removePlayerFromGame(socketId) {
     if (players[socketId]) {
         const p = players[socketId];
-        // Sauvegarde distance
         if (p.pendingDistance > 0 && p.pseudo !== "Invité" && !p.pseudo.startsWith("Cube")) {
-            await User.updateOne({ pseudo: p.pseudo }, { $inc: { distanceTraveled: Math.round(p.pendingDistance) } });
+            try {
+                const user = await User.findOne({ pseudo: p.pseudo });
+                if(user) {
+                    user.distanceTraveled = (user.distanceTraveled || 0) + Math.round(p.pendingDistance);
+                    await checkAchievements(user, null);
+                }
+            } catch(e) { console.error(e); }
         }
 
         delete players[socketId];
-        io.emit('playerDisconnected', socketId); // Retire le cube visuellement pour tout le monde
+        io.emit('playerDisconnected', socketId); 
 
-        // Gestion Loup
         if (socketId === wolfId) {
             const ids = Object.keys(players);
             if (ids.length > 0) {
@@ -128,13 +187,11 @@ async function removePlayerFromGame(socketId) {
 io.on('connection', (socket) => {
     console.log('Nouveau socket : ' + socket.id);
 
-    // Envoi de l'état actuel (pour le fond flouté du lobby)
     socket.emit('currentPlayers', players);
     socket.emit('updateWolf', wolfId);
     if (currentBackground) socket.emit('updateBackground', currentBackground);
 
     socket.on('joinGame', async (pseudoSent) => {
-        // Si déjà en jeu, on ignore ou on reset
         if(players[socket.id]) return;
 
         let finalPseudo = "Invité";
@@ -151,8 +208,8 @@ io.on('connection', (socket) => {
             try {
                 const user = await User.findOne({ pseudo: finalPseudo });
                 if (user) {
-                    if (user.currentSkin) userColor = user.currentSkin; 
                     await User.updateOne({ pseudo: finalPseudo }, { $inc: { gamesJoined: 1 } });
+                    if (user.currentSkin) userColor = user.currentSkin; 
                 }
             } catch (err) { console.error("Erreur chargement user:", err); }
         }
@@ -171,12 +228,10 @@ io.on('connection', (socket) => {
             io.emit('updateWolf', wolfId);
         }
 
-        // Le joueur entre officiellement sur le terrain
         socket.emit('gameJoined', { id: socket.id, info: players[socket.id] });
         socket.broadcast.emit('newPlayer', { playerId: socket.id, playerInfo: players[socket.id] });
     });
 
-    // Permet de quitter le jeu (retour lobby) sans déconnecter le socket
     socket.on('leaveGame', async () => {
         await removePlayerFromGame(socket.id);
     });
@@ -196,7 +251,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('tagPlayer', (targetId) => {
+    socket.on('tagPlayer', async (targetId) => {
         if (socket.id === wolfId && players[targetId]) {
             const now = Date.now();
             const wolf = players[socket.id];
@@ -214,11 +269,20 @@ io.on('connection', (socket) => {
 
                     const wolfPseudo = wolf.pseudo;
                     const targetPseudo = target.pseudo;
+                    
                     if (wolfPseudo !== "Invité" && !wolfPseudo.startsWith("Cube")) {
-                        User.updateOne({ pseudo: wolfPseudo }, { $inc: { tagsInflicted: 1 } }).exec();
+                        const uWolf = await User.findOne({ pseudo: wolfPseudo });
+                        if (uWolf) {
+                            uWolf.tagsInflicted = (uWolf.tagsInflicted || 0) + 1;
+                            await checkAchievements(uWolf, socket.id);
+                        }
                     }
                     if (targetPseudo !== "Invité" && !targetPseudo.startsWith("Cube")) {
-                        User.updateOne({ pseudo: targetPseudo }, { $inc: { timesTagged: 1 } }).exec();
+                        const uTarget = await User.findOne({ pseudo: targetPseudo });
+                        if (uTarget) {
+                            uTarget.timesTagged = (uTarget.timesTagged || 0) + 1;
+                            await checkAchievements(uTarget, targetId);
+                        }
                     }
                 }
             }
@@ -268,7 +332,11 @@ io.on('connection', (socket) => {
                     io.emit('updateBackground', imageData);
                     const p = players[socket.id];
                     if (p && p.pseudo !== "Invité" && !p.pseudo.startsWith("Cube")) {
-                         User.updateOne({ pseudo: p.pseudo }, { $inc: { backgroundsChanged: 1 } }).exec();
+                         const u = await User.findOne({ pseudo: p.pseudo });
+                         if(u) {
+                             u.backgroundsChanged = (u.backgroundsChanged || 0) + 1;
+                             await checkAchievements(u, socket.id);
+                         }
                     }
                 }
             }
@@ -278,14 +346,41 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('changeColor', (newColor) => {
-        if (players[socket.id]) {
-            players[socket.id].color = newColor; 
-            io.emit('updatePlayerColor', { id: socket.id, color: newColor });
-            const p = players[socket.id];
-            if (p && p.pseudo !== "Invité" && !p.pseudo.startsWith("Cube")) {
-                User.updateOne({ pseudo: p.pseudo }, { $set: { currentSkin: newColor } }).exec();
+    socket.on('saveSkin', async (data) => {
+        const { pseudo, color } = data;
+        if (pseudo && color && pseudo !== "Invité") {
+             await User.updateOne({ pseudo: pseudo }, { $set: { currentSkin: color } });
+        }
+    });
+
+    // --- NOUVEAU : GESTION DES CODES SECRETS ---
+    socket.on('redeemCode', async (data) => {
+        const { pseudo, code } = data;
+        if (!pseudo || pseudo === "Invité") return;
+        
+        const cleanCode = code.trim().toUpperCase();
+        if (SECRET_CODES[cleanCode]) {
+            const reward = SECRET_CODES[cleanCode];
+            const user = await User.findOne({ pseudo });
+            
+            if (user) {
+                if (!user.redeemedCodes) user.redeemedCodes = [];
+                if (user.redeemedCodes.includes(cleanCode)) {
+                    socket.emit('codeError', "Code déjà utilisé !");
+                } else {
+                    user.redeemedCodes.push(cleanCode);
+                    if (!user.unlockedSkins.includes(reward.skin)) {
+                        user.unlockedSkins.push(reward.skin);
+                        await user.save();
+                        socket.emit('codeSuccess', `Skin débloqué : ${reward.name}`);
+                        socket.emit('updateSkins', user.unlockedSkins);
+                    } else {
+                        socket.emit('codeError', "Tu as déjà ce skin !");
+                    }
+                }
             }
+        } else {
+            socket.emit('codeError', "Code invalide.");
         }
     });
 
@@ -295,22 +390,15 @@ io.on('connection', (socket) => {
     });
 });
 
-// --- GESTION AFK (MODIFIÉE) ---
+// --- GESTION AFK ---
 setInterval(() => {
     const ids = Object.keys(players);
     if (wolfId && ids.length > 1) {
         if (Date.now() - lastWolfMoveTime > 15000) { 
             console.log(`Loup AFK (${wolfId}) -> Retour Lobby.`);
-            
-            // 1. Prévenir le joueur qu'il est exclu vers le lobby
             io.to(wolfId).emit('forceLobby', 'afk'); 
-            
-            // 2. Retirer proprement le joueur du jeu (mais garder socket connecté)
             const socketDuLoup = io.sockets.sockets.get(wolfId);
-            if (socketDuLoup) {
-                // On appelle la fonction de nettoyage manuellement
-                removePlayerFromGame(wolfId);
-            }
+            if (socketDuLoup) removePlayerFromGame(wolfId);
         }
     }
 }, 1000);
@@ -323,7 +411,11 @@ setInterval(async () => {
         const p = players[id];
         if (p.pendingDistance > 0 && p.pseudo !== "Invité" && !p.pseudo.startsWith("Cube")) {
             try {
-                await User.updateOne({ pseudo: p.pseudo }, { $inc: { distanceTraveled: Math.round(p.pendingDistance) } });
+                const user = await User.findOne({ pseudo: p.pseudo });
+                if(user) {
+                    user.distanceTraveled = (user.distanceTraveled || 0) + Math.round(p.pendingDistance);
+                    await checkAchievements(user, id);
+                }
                 p.pendingDistance = 0;
             } catch (err) { console.error(`Erreur save dist ${p.pseudo}:`, err); }
         }
