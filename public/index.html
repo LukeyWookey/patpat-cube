@@ -24,7 +24,6 @@
         
         .cube {
             position: absolute; width: 50px; height: 50px;
-            /* Le background est géré par le JS ou skins.css */
             border: 2px solid rgba(255,255,255,0.5);
             box-sizing: border-box;
             box-shadow: 0px 0px 10px rgba(0,0,0,0.5);
@@ -32,8 +31,6 @@
             display: flex; justify-content: center; align-items: center; 
             font-weight: bold; color: white; text-shadow: 1px 1px 2px black;
         }
-        
-        /* Infobulle pour le PSEUDO des joueurs sur la carte */
         .cube::after {
             content: attr(data-pseudo);
             position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%);
@@ -42,7 +39,6 @@
             opacity: 0; transition: opacity 0.2s; z-index: 500;
         }
         .cube:hover::after { opacity: 1; }
-        
         .wolf { border: 5px solid red !important; box-shadow: 0 0 20px red !important; z-index: 100; }
         
         #menu-overlay {
@@ -55,8 +51,7 @@
         
         #toggle-btn {
             position: fixed; top: 10px; left: 10px; z-index: 2000;
-            padding: 8px 12px; background: #fff; border: 2px solid #ccc; border-radius: 5px; cursor: pointer; font-weight: bold;
-            display: none;
+            padding: 8px 12px; background: #fff; border: 2px solid #ccc; border-radius: 5px; cursor: pointer; font-weight: bold; display: none;
         }
         #ui-container {
             position: fixed; top: 50px; left: 10px;
@@ -67,93 +62,44 @@
             display: none; width: 220px;
         }
         #ui-container.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-        button { cursor: pointer; padding: 5px 10px; }
         
         #global-msg {
             position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
             padding: 10px 20px; border-radius: 5px; color: white; font-weight: bold;
-            z-index: 4000; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            display: none;
+            z-index: 4000; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: none;
         }
-        .password-wrapper { position: relative; width: 90%; margin: 0 auto 10px auto; }
-        .password-wrapper input { width: 100%; padding: 10px; padding-right: 40px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
-        .eye-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; opacity: 0.6; transition: opacity 0.2s; }
-        .eye-icon:hover { opacity: 1; }
-        .eye-icon svg { width: 100%; height: 100%; fill: #333; }
-
-        /* Styles Spécifiques Lobby */
+        
         .panel-box {
             background: rgba(255,255,255,0.9); padding: 20px; border-radius: 10px; 
             text-align: center; width: 300px; box-shadow: 0 0 15px rgba(0,0,0,0.5);
         }
-        .lobby-btn {
-            width: 100%; padding: 15px; margin-bottom: 10px; 
-            border: none; border-radius: 8px; font-weight: bold; font-size: 16px; 
-            cursor: pointer; transition: transform 0.1s; color: white;
-        }
+        .lobby-btn { width: 100%; padding: 15px; margin-bottom: 10px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; transition: transform 0.1s; color: white; }
         .lobby-btn:active { transform: scale(0.98); }
         .btn-play { background: #4CAF50; font-size: 20px; }
         .btn-stats { background: #9C27B0; }
         .btn-logout { background: #f44336; margin-top: 20px; }
-
-        /* Styles Succès & Skins */
+        
         .ach-item { background: #f9f9f9; padding: 10px; margin-bottom: 5px; border-radius: 5px; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
         .ach-item.locked { opacity: 0.6; filter: grayscale(1); }
         .ach-item.unlocked { border-color: #4CAF50; background: #e8f5e9; }
         
-        /* --- STYLE DES BOUTONS DE SKINS (MODIFIÉ POUR LES INFOBULLES) --- */
-        .skin-box { 
-            width: 40px; height: 40px; 
-            border: 2px solid #ccc; border-radius: 5px; 
-            cursor: pointer; transition: transform 0.2s; 
-            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-            /* Important pour placer le texte par rapport à la boîte */
-            position: relative; 
-        }
-        
+        .skin-box { width: 40px; height: 40px; border: 2px solid #ccc; border-radius: 5px; cursor: pointer; transition: transform 0.2s; box-shadow: 1px 1px 3px rgba(0,0,0,0.2); position: relative; }
         .skin-box:hover { transform: scale(1.1); border-color: #333; }
-
-        /* L'Infobulle qui contient le nom du skin */
         .skin-box::after {
-            content: attr(data-name); /* Récupère le nom injecté par le JS */
-            position: absolute;
-            bottom: 125%; /* Au-dessus */
-            left: 50%;
-            transform: translateX(-50%);
-            
-            background-color: rgba(0, 0, 0, 0.9);
-            color: white;
-            padding: 5px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            white-space: nowrap;
-            pointer-events: none;
-            z-index: 1000;
-            
-            /* Animation */
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.2s;
+            content: attr(data-name); position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.9); color: white; padding: 5px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; pointer-events: none; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.2s;
         }
-
-        /* Affichage au survol seulement si le bouton a un nom */
-        .skin-box:hover::after {
-            opacity: 1;
-            visibility: visible;
-        }
-        /* --------------------------------------------------------------- */
+        .skin-box:hover::after { opacity: 1; visibility: visible; }
         
         #ach-toast {
             position: fixed; bottom: 20px; right: -300px; background: #333; color: #fff; padding: 15px;
-            border-left: 5px solid #ffd700; border-radius: 5px; transition: right 0.5s; z-index: 5000;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border-left: 5px solid #ffd700; border-radius: 5px; transition: right 0.5s; z-index: 5000; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
-        
-        /* Zone de code secret */
         .code-area { margin-top: 20px; padding-top: 15px; border-top: 1px solid #ccc; }
-        .code-area input { padding: 8px; width: 60%; border: 1px solid #999; border-radius: 4px; font-family: monospace; text-transform: uppercase; }
-        .code-area button { padding: 8px 15px; background: #333; color: white; border: none; border-radius: 4px; font-weight: bold; }
-        .code-area button:hover { background: #555; }
+        .password-wrapper { position: relative; width: 90%; margin: 0 auto 10px auto; }
+        .password-wrapper input { width: 100%; padding: 10px; padding-right: 40px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+        .eye-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; opacity: 0.6; transition: opacity 0.2s; }
+        .eye-icon svg { width: 100%; height: 100%; fill: #333; }
     </style>
 </head>
 <body>
@@ -194,33 +140,24 @@
         </div>
 
         <div id="auth-msg" style="margin-top: 10px; font-size: 0.9em; font-weight: bold; min-height: 20px;"></div>
-
         <hr style="margin: 15px 0; border: 0; border-top: 1px solid #ddd;">
         <button onclick="joinGameAsGuest()" style="background: none; border: 1px solid #555; color: #555; padding: 8px 15px; cursor: pointer; border-radius: 20px;">Jouer en tant qu'invité</button>
     </div>
 
     <div id="lobby-panel" class="panel-box" style="display:none;">
         <h2 style="margin-top:0;">Bienvenue <span id="lobby-pseudo" style="color:#2196F3;"></span></h2>
-        
         <button class="lobby-btn btn-play" onclick="enterGame()">🎮 JOUER</button>
         <button class="lobby-btn btn-stats" onclick="openStats()">🏆 STATISTIQUES</button>
         <button class="lobby-btn" style="background: #e67e22;" onclick="openAchievements()">⭐ SUCCÈS & SKINS</button>
         <button class="lobby-btn btn-logout" onclick="doLogout()">Se déconnecter</button>
-        
         <div id="afk-msg" style="color: red; margin-top: 10px; font-weight: bold; display: none;">Vous avez été exclu pour inactivité (AFK)</div>
     </div>
 
     <div id="achievements-panel" style="display:none; background: rgba(255,255,255,0.95); padding: 20px; border-radius: 10px; width: 400px; text-align: center; box-shadow: 0 0 20px rgba(0,0,0,0.6); max-height: 80vh; overflow-y: auto;">
         <h2 style="margin-top: 0; color: #333;">Succès & Skins</h2>
-        <p style="font-size:12px; color:#666;">Débloque des succès ou entre un code pour gagner des skins !</p>
-        
-        <div id="achievements-list" style="text-align: left; margin-bottom: 20px;">
-            </div>
-
+        <div id="achievements-list" style="text-align: left; margin-bottom: 20px;"></div>
         <h3 style="color:#333; border-top:1px solid #ccc; padding-top:10px;">Mes Skins</h3>
-        <div id="skins-container" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 15px;">
-            </div>
-
+        <div id="skins-container" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 15px;"></div>
         <div class="code-area">
             <h4 style="margin:0 0 5px 0; color:#555;">Code Secret / Cadeau</h4>
             <div style="display:flex; justify-content:center; gap:5px;">
@@ -228,38 +165,33 @@
                 <button onclick="redeemCode()">OK</button>
             </div>
         </div>
-
         <button onclick="closeAchievements()" style="margin-top: 15px; background: #555; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer;">Retour au Lobby</button>
     </div>
 
     <div id="stats-panel" style="display:none; background: rgba(255,255,255,0.95); padding: 20px; border-radius: 10px; width: 350px; text-align: center; box-shadow: 0 0 20px rgba(0,0,0,0.6); max-height: 80vh; overflow-y: auto;">
         <h2 style="margin-top: 0; color: #333;">Statistiques</h2>
-        
         <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px;">
             <button onclick="showStatTab('me')" id="btn-stat-me" style="background:#4CAF50; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">Mes Stats</button>
             <button onclick="showStatTab('top')" id="btn-stat-top" style="background:#ccc; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">Classement</button>
         </div>
-
         <div id="view-my-stats">
             <p id="stats-loading">Chargement...</p>
             <div id="stats-content" style="display:none; text-align: left; font-size: 14px;">
                 <p><strong>Joueur :</strong> <span id="st-pseudo"></span></p>
-                <p><strong>Tags infligés (Loup) :</strong> <span id="st-tags">0</span> 🎯</p>
+                <p><strong>Tags infligés :</strong> <span id="st-tags">0</span> 🎯</p>
                 <p><strong>Fois touché :</strong> <span id="st-deaths">0</span> 💀</p>
                 <p><strong>Ratio :</strong> <span id="st-ratio">0</span></p>
-                <p><strong>Parties rejointes :</strong> <span id="st-games">0</span> 🎮</p>
+                <p><strong>Parties :</strong> <span id="st-games">0</span> 🎮</p>
                 <p><strong>Distance :</strong> <span id="st-dist">0</span> px 🏃</p>
                 <p><strong>Fonds changés :</strong> <span id="st-bg">0</span> 🖼️</p>
             </div>
         </div>
-
         <div id="view-leaderboard" style="display:none;">
             <h4 style="margin:5px 0;">Top Chasseurs 🎯</h4>
             <ul id="list-hunters" style="list-style: none; padding: 0; margin-bottom: 15px; text-align: left; font-size: 13px;"></ul>
             <h4 style="margin:5px 0;">Top Voyageurs 🏃</h4>
             <ul id="list-travelers" style="list-style: none; padding: 0; text-align: left; font-size: 13px;"></ul>
         </div>
-
         <button onclick="closeStats()" style="margin-top: 15px; background: #555; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer;">Retour au Lobby</button>
     </div>
 </div>
@@ -276,25 +208,50 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-    const socket = io();
+    // --- GESTION DU TOKEN ---
+    const storedToken = localStorage.getItem('cube_token');
+    
+    // Initialisation Socket AVEC le token
+    const socket = io({
+        auth: { token: storedToken }
+    });
+
     let playersDOM = {};
     let playersData = {};
     const cubeSize = 50;
     let myId = null, myX = 0, myY = 0, currentWolfId = null, isPlaying = false;
-    let currentUserPseudo = null; // Session actuelle
+    let currentUserPseudo = "Invité"; // Par défaut
+
     const keysPressed = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     const speedPerSec = 750, emitThrottleMs = 20, tagCooldownMs = 1000;
     let lastEmitTime = 0, lastTagTime = 0;
     let fxCanvas, fxCtx, fxParticles = [];
     const gameLayer = document.getElementById('game-layer');
 
-    // --- GESTION SESSION INIT ---
-    window.addEventListener('load', () => {
-        const savedPseudo = localStorage.getItem('cube_pseudo');
-        if (savedPseudo) {
-            currentUserPseudo = savedPseudo;
-            goToLobby(currentUserPseudo);
+    // --- AU CHARGEMENT : VÉRIFICATION IDENTITÉ ---
+    window.addEventListener('load', async () => {
+        // On n'utilise plus cube_pseudo du tout
+        // Si on a un token, on demande au serveur qui on est
+        if (storedToken) {
+            try {
+                const res = await fetch('/api/me', {
+                    headers: { 'Authorization': 'Bearer ' + storedToken }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success) {
+                        currentUserPseudo = data.pseudo;
+                        goToLobby(currentUserPseudo);
+                        return; // Connecté !
+                    }
+                } else {
+                    // Token expiré ou invalide
+                    console.log("Token invalide ou expiré");
+                    localStorage.removeItem('cube_token');
+                }
+            } catch(e) { console.error("Erreur auth auto", e); }
         }
+        // Si pas de token ou erreur, on reste sur l'écran de login
     });
 
     function showForm(type) {
@@ -316,12 +273,10 @@
         }
     }
 
-    // --- AUTHENTIFICATION ---
     function togglePass(inputId, iconContainer) {
         const input = document.getElementById(inputId);
         const eyeOpenSVG = '<svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>';
         const eyeOffSVG = '<svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>';
-        
         if (input.type === "password") { input.type = "text"; iconContainer.innerHTML = eyeOffSVG; } 
         else { input.type = "password"; iconContainer.innerHTML = eyeOpenSVG; }
     }
@@ -340,8 +295,15 @@
             const data = await res.json();
             if (data.success) {
                 msg.innerText = "Succès !"; msg.style.color = "green";
-                localStorage.setItem('cube_pseudo', data.pseudo);
+                
+                // ON NE STOCKE PLUS LE PSEUDO EN LOCALSTORAGE
+                localStorage.setItem('cube_token', data.token);
                 currentUserPseudo = data.pseudo;
+
+                // Reset socket avec nouveau token
+                socket.auth.token = data.token;
+                socket.disconnect().connect();
+
                 setTimeout(() => goToLobby(data.pseudo), 500);
             } else { msg.innerText = data.message; msg.style.color = "red"; }
         } catch (e) { msg.innerText = "Erreur serveur"; msg.style.color = "red"; }
@@ -367,11 +329,12 @@
     }
 
     function joinGameAsGuest() {
-        currentUserPseudo = ""; // Guest
+        localStorage.removeItem('cube_token');
+        socket.auth.token = null;
+        socket.disconnect().connect();
+        currentUserPseudo = "Invité"; 
         goToLobby("Invité");
     }
-
-    // --- NAVIGATION LOGIQUE ---
 
     function goToLobby(pseudo) {
         document.getElementById('auth-panel').style.display = 'none';
@@ -384,11 +347,7 @@
         document.getElementById('ui-container').style.display = 'none';
         document.getElementById('menu-overlay').classList.remove('hidden');
         isPlaying = false;
-        
-        if(myId) {
-            socket.emit('leaveGame');
-            myId = null;
-        }
+        if(myId) { socket.emit('leaveGame'); myId = null; }
     }
 
     function enterGame() {
@@ -396,37 +355,23 @@
         document.getElementById('game-layer').classList.remove('blurred');
         document.getElementById('toggle-btn').style.display = 'block';
         document.getElementById('ui-container').style.display = 'flex';
-        
-        socket.emit('joinGame', currentUserPseudo);
+        // Le serveur nous identifie via le token
+        socket.emit('joinGame');
         isPlaying = true;
     }
 
     function doLogout() {
-        localStorage.removeItem('cube_pseudo');
-        currentUserPseudo = null;
+        localStorage.removeItem('cube_token'); // On supprime juste le token
+        currentUserPseudo = "Invité";
         location.reload();
     }
 
-    // --- LOGIQUE JEU & SKINS ---
-
-    // FONCTION MAGIQUE : Gère couleurs simples OU classes CSS
+    // --- GAME LOGIC ---
     function applySkinToElement(el, skinVal) {
-        // 1. Reset
         el.style.background = '';
-        el.className.split(' ').forEach(c => {
-            if (c.startsWith('skin-')) el.classList.remove(c);
-        });
-
-        // 2. Application
-        if (skinVal && skinVal.startsWith('skin-')) {
-            // C'est une classe définie dans skins.css
-            el.classList.add(skinVal);
-        } else {
-            // C'est une couleur (hex, rgb, ou gradient direct)
-            el.style.background = skinVal;
-        }
+        el.className.split(' ').forEach(c => { if (c.startsWith('skin-')) el.classList.remove(c); });
+        if (skinVal && skinVal.startsWith('skin-')) el.classList.add(skinVal); else el.style.background = skinVal;
     }
-
     function initFxCanvas() {
         fxCanvas = document.createElement('canvas');
         fxCanvas.style.position = 'absolute'; fxCanvas.style.left = '0'; fxCanvas.style.top = '0';
@@ -438,63 +383,34 @@
         window.addEventListener('resize', () => { fxCanvas.width = window.innerWidth; fxCanvas.height = window.innerHeight; });
         requestAnimationFrame(stepFx);
     }
-
     socket.on('uploadError', (message) => { alert("⛔ " + message); document.getElementById('status').innerText = message; });
     socket.on('serverMessage', (data) => {
-        const msgDiv = document.getElementById('global-msg');
-        msgDiv.innerText = data.text;
+        const msgDiv = document.getElementById('global-msg'); msgDiv.innerText = data.text;
         msgDiv.style.backgroundColor = data.color === 'red' ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 128, 0, 0.8)';
         msgDiv.style.display = 'block'; setTimeout(() => { msgDiv.style.display = 'none'; }, 4000);
     });
-
     socket.on('gameJoined', (data) => {
         myId = data.id; const info = data.info; myX = info.x; myY = info.y;
         playersData[myId] = { serverX: info.x, serverY: info.y, displayX: info.x, displayY: info.y, color: info.color };
         createCube(myId, info);
     });
-
     socket.on('forceLobby', (reason) => {
-        goToLobby(currentUserPseudo || "Invité");
-        if(reason === 'afk') {
-            document.getElementById('afk-msg').style.display = 'block';
-        }
+        goToLobby(currentUserPseudo);
+        if(reason === 'afk') document.getElementById('afk-msg').style.display = 'block';
     });
-
     socket.on('disconnect', () => { 
-        if (isPlaying) {
-             goToLobby(currentUserPseudo || "Invité");
-             document.getElementById('afk-msg').innerText = "Connexion perdue avec le serveur.";
-             document.getElementById('afk-msg').style.display = 'block';
-        }
+        if (isPlaying) { goToLobby(currentUserPseudo); document.getElementById('afk-msg').innerText = "Connexion perdue."; document.getElementById('afk-msg').style.display = 'block'; }
     });
-
-    // --- NOTIFICATIONS & ÉVÉNEMENTS ---
-    socket.on('achievementUnlocked', (data) => {
-        showToast(`🏆 ${data.name}`, data.desc);
-    });
-    socket.on('codeSuccess', (msg) => {
-        showToast("🎁 Code Valide !", msg);
-    });
-    socket.on('codeError', (msg) => {
-        alert("Code Erreur : " + msg);
-    });
-
+    socket.on('achievementUnlocked', (data) => { showToast(`🏆 ${data.name}`, data.desc); });
+    socket.on('codeSuccess', (msg) => { showToast("🎁 Code Valide !", msg); });
+    socket.on('codeError', (msg) => { alert("Code Erreur : " + msg); });
     function showToast(title, desc) {
         const toast = document.getElementById('ach-toast');
         document.getElementById('ach-toast-msg').innerHTML = `<strong>${title}</strong><br>${desc}`;
-        toast.style.right = "20px";
-        setTimeout(() => { toast.style.right = "-300px"; }, 4000);
+        toast.style.right = "20px"; setTimeout(() => { toast.style.right = "-300px"; }, 4000);
     }
-
     socket.on('currentPlayers', (serverPlayers) => {
-        const currentIds = Object.keys(serverPlayers);
-        for(let id in playersDOM) {
-            if(!serverPlayers[id] && id !== myId) {
-                playersDOM[id].remove();
-                delete playersDOM[id];
-                delete playersData[id];
-            }
-        }
+        for(let id in playersDOM) { if(!serverPlayers[id] && id !== myId) { playersDOM[id].remove(); delete playersDOM[id]; delete playersData[id]; } }
         Object.keys(serverPlayers).forEach((id) => {
             if (isPlaying && id === myId) return;
             const info = serverPlayers[id];
@@ -503,30 +419,21 @@
         });
         updateWolfVisuals();
     });
-
     socket.on('newPlayer', (data) => {
         if (data.playerId === myId) return;
         const info = data.playerInfo;
         playersData[data.playerId] = { serverX: info.x, serverY: info.y, displayX: info.x, displayY: info.y, color: info.color, lastUpdate: Date.now() };
-        createCube(data.playerId, info);
-        updateWolfVisuals();
+        createCube(data.playerId, info); updateWolfVisuals();
     });
     socket.on('playerMoved', (data) => {
         if (!playersData[data.playerId]) return;
-        playersData[data.playerId].serverX = data.x;
-        playersData[data.playerId].serverY = data.y;
-        playersData[data.playerId].lastUpdate = Date.now();
+        playersData[data.playerId].serverX = data.x; playersData[data.playerId].serverY = data.y; playersData[data.playerId].lastUpdate = Date.now();
     });
     socket.on('updateBackground', (imageData) => { if(imageData) document.body.style.backgroundImage = `url('${imageData}')`; });
-    
-    // Mise à jour visuelle des couleurs/skins des autres joueurs
     socket.on('updatePlayerColor', (data) => {
-        if (playersDOM[data.id]) {
-            applySkinToElement(playersDOM[data.id], data.color);
-        }
+        if (playersDOM[data.id]) applySkinToElement(playersDOM[data.id], data.color);
         if (playersData[data.id]) playersData[data.id].color = data.color;
     });
-    
     socket.on('playerDisconnected', (playerId) => {
         if (playersDOM[playerId]) playersDOM[playerId].classList.add('despawn');
         setTimeout(() => { if (playersDOM[playerId]) playersDOM[playerId].remove(); delete playersDOM[playerId]; delete playersData[playerId]; }, 300);
@@ -538,16 +445,12 @@
         if (playersDOM[id]) return; 
         const cube = document.createElement('div');
         cube.classList.add('cube'); cube.id = id;
-        
-        // Utilisation de la fonction intelligente pour le skin
         applySkinToElement(cube, info.color);
-        
         cube.style.transform = `translate3d(${info.x}px, ${info.y}px, 0)`;
         if (info.pseudo) cube.setAttribute('data-pseudo', info.pseudo);
         gameLayer.appendChild(cube);
         playersDOM[id] = cube;
     }
-
     function updateWolfVisuals() {
         for (let id in playersDOM) { playersDOM[id].classList.remove('wolf'); playersDOM[id].innerText = ""; }
         if (currentWolfId && playersDOM[currentWolfId]) { playersDOM[currentWolfId].classList.add('wolf'); playersDOM[currentWolfId].innerText = "LOUP"; }
@@ -604,13 +507,11 @@
         for (const p of fxParticles) {
             const age = (now - p.born) / p.life;
             p.x += p.vx; p.y += p.vy;
-            fxCtx.globalAlpha = 1 - age; fxCtx.fillStyle = p.color;
-            fxCtx.beginPath(); fxCtx.arc(p.x, p.y, 2 + (1 - age) * 3, 0, Math.PI * 2); fxCtx.fill();
+            fxCtx.globalAlpha = 1 - age; fxCtx.fillStyle = p.color; fxCtx.beginPath(); fxCtx.arc(p.x, p.y, 2 + (1 - age) * 3, 0, Math.PI * 2); fxCtx.fill();
         }
         requestAnimationFrame(stepFx);
     }
     function toggleUI() { document.getElementById('ui-container').classList.toggle('hidden'); document.body.focus(); }
-    
     function uploadImage() {
         const fileInput = document.getElementById('fileInput');
         const file = fileInput.files[0];
@@ -621,64 +522,37 @@
             reader.readAsDataURL(file);
         } else { alert("Sélectionne un fichier !"); }
     }
-
-    // SAUVEGARDE DU SKIN
     function applySkin(skinVal) {
-        if(!currentUserPseudo || currentUserPseudo === "Invité") {
-            alert("Connecte-toi pour sauvegarder un skin !");
-            return;
-        }
-        socket.emit('saveSkin', { pseudo: currentUserPseudo, color: skinVal });
-        alert("Skin sauvegardé ! Il sera utilisé à la prochaine partie.");
+        if(!currentUserPseudo || currentUserPseudo === "Invité") { alert("Connecte-toi !"); return; }
+        socket.emit('saveSkin', { color: skinVal });
+        alert("Skin sauvegardé !");
     }
-    
-    // VALIDATION DE CODE
     function redeemCode() {
         const input = document.getElementById('input-code');
-        const code = input.value;
-        if(!code) return;
-        if(!currentUserPseudo || currentUserPseudo === "Invité") {
-            alert("Connecte-toi pour utiliser un code !");
-            return;
-        }
-        socket.emit('redeemCode', { pseudo: currentUserPseudo, code: code });
+        if(!input.value) return;
+        if(!currentUserPseudo || currentUserPseudo === "Invité") { alert("Connecte-toi !"); return; }
+        socket.emit('redeemCode', { code: input.value });
         input.value = "";
     }
-    
-    // --- GESTION PANNEAUX STATS & SUCCÈS ---
-    
-    function openStats() {
-        document.getElementById('lobby-panel').style.display = 'none';
-        document.getElementById('stats-panel').style.display = 'block';
-        showStatTab('me');
-    }
-    function closeStats() {
-        document.getElementById('stats-panel').style.display = 'none';
-        document.getElementById('lobby-panel').style.display = 'block';
-    }
+    function openStats() { document.getElementById('lobby-panel').style.display = 'none'; document.getElementById('stats-panel').style.display = 'block'; showStatTab('me'); }
+    function closeStats() { document.getElementById('stats-panel').style.display = 'none'; document.getElementById('lobby-panel').style.display = 'block'; }
     function showStatTab(tab) {
         if (tab === 'me') {
-            document.getElementById('view-my-stats').style.display = 'block';
-            document.getElementById('view-leaderboard').style.display = 'none';
+            document.getElementById('view-my-stats').style.display = 'block'; document.getElementById('view-leaderboard').style.display = 'none';
             document.getElementById('btn-stat-me').style.background = '#4CAF50'; document.getElementById('btn-stat-me').style.color = 'white';
             document.getElementById('btn-stat-top').style.background = '#ccc'; document.getElementById('btn-stat-top').style.color = 'black';
             loadMyStats();
         } else {
-            document.getElementById('view-my-stats').style.display = 'none';
-            document.getElementById('view-leaderboard').style.display = 'block';
+            document.getElementById('view-my-stats').style.display = 'none'; document.getElementById('view-leaderboard').style.display = 'block';
             document.getElementById('btn-stat-top').style.background = '#2196F3'; document.getElementById('btn-stat-top').style.color = 'white';
             document.getElementById('btn-stat-me').style.background = '#ccc'; document.getElementById('btn-stat-me').style.color = 'black';
             loadLeaderboard();
         }
     }
     async function loadMyStats() {
-        const msgDiv = document.getElementById('stats-loading');
-        const contentDiv = document.getElementById('stats-content');
+        const msgDiv = document.getElementById('stats-loading'); const contentDiv = document.getElementById('stats-content');
         let pseudoToCheck = currentUserPseudo;
-        if (!pseudoToCheck || pseudoToCheck === "Invité") { 
-             msgDiv.innerText = "Tu es Invité, pas de stats."; 
-             contentDiv.style.display = 'none'; return; 
-        }
+        if (!pseudoToCheck || pseudoToCheck === "Invité") { msgDiv.innerText = "Invité : pas de stats."; contentDiv.style.display = 'none'; return; }
         msgDiv.innerText = "Chargement..."; contentDiv.style.display = 'none';
         try {
             const res = await fetch('/api/stats/' + encodeURIComponent(pseudoToCheck));
@@ -692,184 +566,65 @@
                 document.getElementById('st-games').innerText = data.stats.gamesJoined || 0;
                 document.getElementById('st-dist').innerText = data.stats.distanceTraveled || 0;
                 document.getElementById('st-bg').innerText = data.stats.backgroundsChanged || 0;
-            } else { msgDiv.innerText = "Pas de stats trouvées."; msgDiv.style.display = 'block'; }
+            } else { msgDiv.innerText = "Pas de stats."; msgDiv.style.display = 'block'; }
         } catch (e) { msgDiv.innerText = "Erreur."; }
     }
     async function loadLeaderboard() {
-        const listHunters = document.getElementById('list-hunters');
-        const listTravelers = document.getElementById('list-travelers');
+        const listHunters = document.getElementById('list-hunters'); const listTravelers = document.getElementById('list-travelers');
         listHunters.innerHTML = "Chargement..."; listTravelers.innerHTML = "Chargement...";
         try {
             const res = await fetch('/api/leaderboard');
             const data = await res.json();
             if (data.success) {
                 listHunters.innerHTML = "";
-                data.hunters.forEach((p, i) => {
-                    const li = document.createElement('li');
-                    li.innerHTML = `<strong>#${i+1} ${p.pseudo}</strong> : ${p.tagsInflicted} tags`;
-                    li.style.borderBottom = "1px solid #eee"; li.style.padding = "4px 0";
-                    listHunters.appendChild(li);
-                });
+                data.hunters.forEach((p, i) => { const li = document.createElement('li'); li.innerHTML = `<strong>#${i+1} ${p.pseudo}</strong> : ${p.tagsInflicted} tags`; li.style.borderBottom = "1px solid #eee"; li.style.padding = "4px 0"; listHunters.appendChild(li); });
                 listTravelers.innerHTML = "";
-                data.travelers.forEach((p, i) => {
-                    const li = document.createElement('li');
-                    li.innerHTML = `<strong>#${i+1} ${p.pseudo}</strong> : ${Math.round(p.distanceTraveled)} px`;
-                    li.style.borderBottom = "1px solid #eee"; li.style.padding = "4px 0";
-                    listTravelers.appendChild(li);
-                });
+                data.travelers.forEach((p, i) => { const li = document.createElement('li'); li.innerHTML = `<strong>#${i+1} ${p.pseudo}</strong> : ${Math.round(p.distanceTraveled)} px`; li.style.borderBottom = "1px solid #eee"; li.style.padding = "4px 0"; listTravelers.appendChild(li); });
             }
         } catch (e) { listHunters.innerHTML = "Erreur."; }
     }
-
-    // --- FONCTIONS SUCCÈS & SKINS ---
-    function openAchievements() {
-        document.getElementById('lobby-panel').style.display = 'none';
-        document.getElementById('achievements-panel').style.display = 'block';
-        loadAchievements();
-    }
-    function closeAchievements() {
-        document.getElementById('achievements-panel').style.display = 'none';
-        document.getElementById('lobby-panel').style.display = 'block';
-    }
-
-    // Fonction pour vérifier si une classe CSS existe vraiment
+    function openAchievements() { document.getElementById('lobby-panel').style.display = 'none'; document.getElementById('achievements-panel').style.display = 'block'; loadAchievements(); }
+    function closeAchievements() { document.getElementById('achievements-panel').style.display = 'none'; document.getElementById('lobby-panel').style.display = 'block'; }
     function isSkinClassDefined(className) {
-        // On regarde toutes les feuilles de style chargées (skins.css, etc.)
         for (let i = 0; i < document.styleSheets.length; i++) {
-            const sheet = document.styleSheets[i];
             try {
-                // On parcourt toutes les règles (les classes) du fichier
-                const rules = sheet.cssRules || sheet.rules;
-                if (rules) {
-                    for (let j = 0; j < rules.length; j++) {
-                        // Si on trouve une règle qui correspond à ".nom-du-skin"
-                        if (rules[j].selectorText && rules[j].selectorText.includes('.' + className)) {
-                            return true; // La classe existe !
-                        }
-                    }
-                }
-            } catch (e) {
-                // Parfois les navigateurs bloquent l'accès aux fichiers externes, on ignore
-                continue;
-            }
+                const rules = document.styleSheets[i].cssRules || document.styleSheets[i].rules;
+                if (rules) for (let j = 0; j < rules.length; j++) if (rules[j].selectorText && rules[j].selectorText.includes('.' + className)) return true;
+            } catch (e) { continue; }
         }
-        return false; // La classe n'a pas été trouvée
+        return false;
     }
-
     async function loadAchievements() {
-        const listDiv = document.getElementById('achievements-list');
-        const skinsDiv = document.getElementById('skins-container');
+        const listDiv = document.getElementById('achievements-list'); const skinsDiv = document.getElementById('skins-container');
         listDiv.innerHTML = "Chargement...";
-        
-        if (!currentUserPseudo || currentUserPseudo === "Invité") {
-            listDiv.innerHTML = "Connecte-toi pour voir tes succès.";
-            skinsDiv.innerHTML = ""; return;
-        }
-
+        if (!currentUserPseudo || currentUserPseudo === "Invité") { listDiv.innerHTML = "Connecte-toi pour voir tes succès."; skinsDiv.innerHTML = ""; return; }
         try {
             const res = await fetch('/api/my-achievements/' + encodeURIComponent(currentUserPseudo));
             const data = await res.json();
-            
             if (data.success) {
-                // 1. Affichage de la liste des Succès (Texte)
                 listDiv.innerHTML = "";
                 data.achievements.forEach(ach => {
-                    const div = document.createElement('div');
-                    div.className = `ach-item ${ach.unlocked ? 'unlocked' : 'locked'}`;
-                    div.innerHTML = `
-                        <div>
-                            <div style="font-weight:bold;">${ach.name}</div>
-                            <div style="font-size:12px;">${ach.desc}</div>
-                        </div>
-                        <div style="font-size:20px;">${ach.unlocked ? '✅' : '🔒'}</div>
-                    `;
+                    const div = document.createElement('div'); div.className = `ach-item ${ach.unlocked ? 'unlocked' : 'locked'}`;
+                    div.innerHTML = `<div><div style="font-weight:bold;">${ach.name}</div><div style="font-size:12px;">${ach.desc}</div></div><div style="font-size:20px;">${ach.unlocked ? '✅' : '🔒'}</div>`;
                     listDiv.appendChild(div);
                 });
-
-                // 2. DICTIONNAIRE DE TRADUCTION (Basé sur votre fichier de config)
-                // C'est ici qu'on associe le code technique au Nom à afficher
-                const skinNames = {
-                    // --- SKINS DES SUCCÈS ---
-                    '#ff0000': 'Rouge Sang',
-                    'linear-gradient(45deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%)': 'Aube',
-                    '#00ccff': 'Azur',
-                    'linear-gradient(to right, #f12711, #f5af19)': 'Feu',
-                    '#9b59b6': 'Améthyste',
-                    '#7f8c8d': 'Fantôme',
-                    
-                    // --- SKINS DES CODES ---
-                    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)': 'Skin Admin',
-                    '#00ff00': 'Hacker Green',
-                    'linear-gradient(to bottom, #f7971e, #ffd200)': 'Or Massif',
-                    'skin-rainbow': 'Arc-en-ciel Divin',
-                    'skin-glitch': 'Matrix',
-                    'skin-nyan': 'Nyan Cat',
-                    'skin-pulse': 'Pulsation'
-                };
-
-                // 3. Affichage des Skins (Boutons cliquables)
                 skinsDiv.innerHTML = "";
-                
-                // Bouton "?" (Skin Aléatoire)
-                const defBtn = document.createElement('div');
-                defBtn.className = 'skin-box';
-                defBtn.style.background = 'white';
-                defBtn.style.display = 'flex'; 
-                defBtn.style.alignItems='center'; 
-                defBtn.style.justifyContent='center';
-                defBtn.innerText = "?";
-                defBtn.setAttribute('data-name', 'Aléatoire'); // Infobulle
-                defBtn.onclick = () => { 
-                    const rndColor = '#' + Math.floor(Math.random()*16777215).toString(16);
-                    applySkin(rndColor); 
-                };
-                skinsDiv.appendChild(defBtn);
+                const defBtn = document.createElement('div'); defBtn.className = 'skin-box'; defBtn.style.background = 'white'; defBtn.style.display = 'flex'; defBtn.style.alignItems='center'; defBtn.style.justifyContent='center'; defBtn.innerText = "?"; defBtn.setAttribute('data-name', 'Aléatoire');
+                defBtn.onclick = () => { applySkin('#' + Math.floor(Math.random()*16777215).toString(16)); }; skinsDiv.appendChild(defBtn);
 
-                // Boucle sur les skins débloqués par le joueur
-                // Boucle sur les skins débloqués par le joueur
+                const skinNames = { '#ff0000': 'Rouge Sang', 'linear-gradient(45deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%)': 'Aube', '#00ccff': 'Azur', 'linear-gradient(to right, #f12711, #f5af19)': 'Feu', '#9b59b6': 'Améthyste', '#7f8c8d': 'Fantôme', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)': 'Skin Admin', '#00ff00': 'Hacker Green', 'linear-gradient(to bottom, #f7971e, #ffd200)': 'Or Massif', 'skin-rainbow': 'Arc-en-ciel Divin', 'skin-glitch': 'Matrix', 'skin-nyan': 'Nyan Cat', 'skin-pulse': 'Pulsation' };
+
                 data.unlockedSkins.forEach(skin => {
-                    
-                    // --- NOUVELLE VÉRIFICATION ---
-                    // Si c'est un skin basé sur une classe (ex: 'skin-pulse')
-                    // et que cette classe n'existe plus dans le CSS, ON PASSE AU SUIVANT.
-                    if (skin.startsWith('skin-') && !isSkinClassDefined(skin)) {
-                        console.log("Skin ignoré car introuvable dans CSS :", skin);
-                        return; // On ne crée pas le bouton
-                    }
-                    // -----------------------------
-
-                    const btn = document.createElement('div');
-                    btn.className = 'skin-box';
-                    
-                    // --- LOGIQUE POUR TROUVER LE NOM ---
-                    let displayName = skinNames[skin];
-                    
-                    if (!displayName) {
-                        if(skin.startsWith('#')) displayName = "Couleur " + skin;
-                        else if(skin.startsWith('linear-gradient')) displayName = "Dégradé Spécial";
-                        else displayName = skin;
-                    }
-                    
+                    if (skin.startsWith('skin-') && !isSkinClassDefined(skin)) return;
+                    const btn = document.createElement('div'); btn.className = 'skin-box';
+                    let displayName = skinNames[skin]; if (!displayName) displayName = skin.startsWith('#') ? "Couleur " + skin : "Spécial";
                     btn.setAttribute('data-name', displayName);
-                    
-                    // Gestion de l'affichage
-                    if (skin.startsWith('skin-')) {
-                        btn.classList.add(skin);
-                    } else {
-                        btn.style.background = skin;
-                    }
-                    
-                    btn.onclick = () => applySkin(skin);
-                    skinsDiv.appendChild(btn);
+                    if (skin.startsWith('skin-')) btn.classList.add(skin); else btn.style.background = skin;
+                    btn.onclick = () => applySkin(skin); skinsDiv.appendChild(btn);
                 });
             }
         } catch(e) { console.error(e); }
     }
-
-
-
-
-
     document.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT') toggleUI(); if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = true; });
     document.addEventListener('keyup', (e) => { if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = false; });
     let lastFrameTime = performance.now();

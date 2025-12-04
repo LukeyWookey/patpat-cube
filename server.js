@@ -8,19 +8,22 @@ const FormData = require('form-data');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const sharp = require('sharp');
+const jwt = require('jsonwebtoken');
 
-// IMPORT CONFIG DEV
 const { ACHIEVEMENTS, SECRET_CODES } = require('./gameConfig');
+
+// SÉCURITÉ : Clé secrète (A mettre dans .env en prod)
+const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_MOI_IMMEDIATEMENT_POUR_SECURISE";
 
 // --- CONNEXION MONGODB ---
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ Connecté à MongoDB'))
     .catch(err => console.error('❌ Erreur MongoDB:', err));
 
-// --- MODÈLE UTILISATEUR COMPLET ---
+// --- MODÈLE UTILISATEUR ---
 const UserSchema = new mongoose.Schema({
     pseudo: { type: String, unique: true, required: true },
-    password: { type: String, required: true },
+    password: { type: String, required: true }, // Sera exclu des requêtes publiques
     createdAt: { type: Date, default: Date.now },
     // Stats
     tagsInflicted: { type: Number, default: 0 },
@@ -32,7 +35,7 @@ const UserSchema = new mongoose.Schema({
     currentSkin: { type: String, default: null },
     achievements: { type: [String], default: [] }, 
     unlockedSkins: { type: [String], default: [] },
-    redeemedCodes: { type: [String], default: [] } // Pour ne pas utiliser 2 fois le même code
+    redeemedCodes: { type: [String], default: [] }
 });
 const User = mongoose.model('User', UserSchema);
 
@@ -45,13 +48,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 let players = {};
 let currentBackground = null; 
 let wolfId = null; 
+let uploadCooldowns = {}; 
 
 const API_USER = process.env.SIGHTENGINE_USER; 
 const API_SECRET = process.env.SIGHTENGINE_SECRET;
 const API_URL = 'https://api.sightengine.com/1.0/check.json';
 const BLOCKED_IMG = "https://i.redd.it/58qnz74nf5j41.png";
-
-let uploadCooldowns = {}; 
 const COOLDOWN_NORMAL = 15000;
 const COOLDOWN_PENALTY = 60000;
 let lastTagTime = 0;
@@ -62,7 +64,6 @@ let lastWolfMoveTime = Date.now();
 async function checkAchievements(user, socketId) {
     let changed = false;
     let newUnlocks = [];
-
     for (const ach of ACHIEVEMENTS) {
         if (!user.achievements.includes(ach.id)) {
             if (ach.condition(user)) {
@@ -75,10 +76,7 @@ async function checkAchievements(user, socketId) {
             }
         }
     }
-
     if (changed) {
-        // Note: On ne fait pas le save() ici, car on le fait manuellement après pour être sûr de tout sauvegarder
-        // Mais on garde le save() ici au cas où la fonction est appelée seule.
         await user.save();
         if (socketId) {
             newUnlocks.forEach(ach => {
@@ -89,7 +87,23 @@ async function checkAchievements(user, socketId) {
     }
 }
 
+// --- HELPER: MIDDLEWARE AUTH API (EXPRESS) ---
+// Vérifie le token pour les routes HTTP comme /api/me
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN"
+    
+    if (!token) return res.sendStatus(401); // Pas de token
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.sendStatus(403); // Token invalide
+        req.user = user;
+        next();
+    });
+}
+
 // --- ROUTES API ---
+
 app.post('/api/register', async (req, res) => {
     const { pseudo, password } = req.body;
     if (!pseudo || !password) return res.json({ success: false, message: "Champs manquants." });
@@ -110,26 +124,55 @@ app.post('/api/login', async (req, res) => {
     try {
         const user = await User.findOne({ pseudo: { $regex: new RegExp(`^${pseudo}$`, 'i') } });
         if (!user) return res.json({ success: false, message: "Utilisateur inconnu." });
+        
         const match = await bcrypt.compare(password, user.password);
-        if (match) res.json({ success: true, pseudo: user.pseudo });
+        if (match) {
+            // Token valide 7 jours
+            const token = jwt.sign({ id: user._id, pseudo: user.pseudo }, JWT_SECRET, { expiresIn: '7d' });
+            // On ne renvoie PLUS le pseudo ici si on veut forcer l'usage du token, 
+            // mais c'est pratique pour l'UI immédiate.
+            res.json({ success: true, token: token, pseudo: user.pseudo });
+        }
         else res.json({ success: false, message: "Mot de passe incorrect." });
     } catch (error) { res.json({ success: false, message: "Erreur serveur." }); }
 });
 
+// NOUVELLE ROUTE : Récupérer son profil via le Token
+app.get('/api/me', authenticateToken, async (req, res) => {
+    // req.user contient {id, pseudo} décodé du token
+    try {
+        // On récupère les infos fraîches, SANS le mot de passe
+        const user = await User.findById(req.user.id).select('-password -__v');
+        if (!user) return res.sendStatus(404);
+        res.json({ success: true, pseudo: user.pseudo, stats: user });
+    } catch (e) {
+        res.sendStatus(500);
+    }
+});
+
+// SÉCURISÉ : On exclut le mot de passe hashé
 app.get('/api/stats/:pseudo', async (req, res) => {
     try {
-        const user = await User.findOne({ pseudo: req.params.pseudo });
+        // CORRECTION IMPORTANTE : .select('-password')
+        const user = await User.findOne({ pseudo: req.params.pseudo }).select('-password -__v -_id');
+        
         if (!user) return res.json({ success: false });
+        
+        // Calcul du ratio
         const ratio = user.timesTagged === 0 ? user.tagsInflicted : (user.tagsInflicted / user.timesTagged).toFixed(2);
-        res.json({
-            success: true,
-            stats: { ...user.toObject(), ratio: ratio, distanceTraveled: Math.round(user.distanceTraveled || 0) }
-        });
+        
+        // On convertit en objet JS simple et on ajoute le ratio
+        const statsObj = user.toObject();
+        statsObj.ratio = ratio;
+        statsObj.distanceTraveled = Math.round(statsObj.distanceTraveled || 0);
+
+        res.json({ success: true, stats: statsObj });
     } catch (e) { res.json({ success: false }); }
 });
 
 app.get('/api/leaderboard', async (req, res) => {
     try {
+        // Ici on sélectionnait déjà uniquement pseudo et tags, donc c'était safe, mais on garde
         const hunters = await User.find().sort({ tagsInflicted: -1 }).limit(10).select('pseudo tagsInflicted');
         const travelers = await User.find().sort({ distanceTraveled: -1 }).limit(10).select('pseudo distanceTraveled');
         res.json({ success: true, hunters, travelers });
@@ -138,7 +181,7 @@ app.get('/api/leaderboard', async (req, res) => {
 
 app.get('/api/my-achievements/:pseudo', async (req, res) => {
     try {
-        const user = await User.findOne({ pseudo: req.params.pseudo });
+        const user = await User.findOne({ pseudo: req.params.pseudo }).select('achievements unlockedSkins');
         if (!user) return res.json({ success: false });
         
         const list = ACHIEVEMENTS.map(ach => ({
@@ -154,17 +197,21 @@ app.get('/api/my-achievements/:pseudo', async (req, res) => {
     } catch (e) { res.json({ success: false }); }
 });
 
-// --- HELPER: RETIRER JOUEUR ---
+// --- SOCKET.IO ---
+
+// Helper pour retirer un joueur proprement
 async function removePlayerFromGame(socketId) {
     if (players[socketId]) {
         const p = players[socketId];
+        // Sauvegarde stats si authentifié
         if (p.pendingDistance > 0 && p.pseudo !== "Invité" && !p.pseudo.startsWith("Cube")) {
             try {
+                // On utilise le pseudo du joueur pour retrouver son compte
                 const user = await User.findOne({ pseudo: p.pseudo });
                 if(user) {
                     user.distanceTraveled = (user.distanceTraveled || 0) + Math.round(p.pendingDistance);
                     await checkAchievements(user, null);
-                    await user.save(); // [CORRECTION] Sauvegarde forcée
+                    await user.save();
                 }
             } catch(e) { console.error(e); }
         }
@@ -186,7 +233,24 @@ async function removePlayerFromGame(socketId) {
     }
 }
 
-// --- SOCKET.IO ---
+// MIDDLEWARE AUTH SOCKET (Vérifie Token JWT)
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (token) {
+        jwt.verify(token, JWT_SECRET, (err, decoded) => {
+            if (err) {
+                socket.user = null; // Token invalide -> Invité
+            } else {
+                socket.user = decoded; // Token OK -> Authentifié
+            }
+            next();
+        });
+    } else {
+        socket.user = null; // Pas de token -> Invité
+        next();
+    }
+});
+
 io.on('connection', (socket) => {
     console.log('Nouveau socket : ' + socket.id);
 
@@ -194,27 +258,26 @@ io.on('connection', (socket) => {
     socket.emit('updateWolf', wolfId);
     if (currentBackground) socket.emit('updateBackground', currentBackground);
 
-    socket.on('joinGame', async (pseudoSent) => {
+    // REJOINDRE LE JEU
+    socket.on('joinGame', async () => {
         if(players[socket.id]) return;
 
         let finalPseudo = "Invité";
         let userColor = '#' + Math.floor(Math.random()*16777215).toString(16);
 
-        if (pseudoSent && typeof pseudoSent === 'string' && pseudoSent.trim().length > 0) {
-            finalPseudo = pseudoSent.trim().substring(0, 12);
-        } else {
-            finalPseudo = "Cube" + Math.floor(Math.random() * 1000);
-        }
-
-        const isRegistered = finalPseudo !== "Invité" && !finalPseudo.startsWith("Cube");
-        if (isRegistered) {
+        // AUTHENTIFICATION FORTE : On utilise socket.user (JWT)
+        if (socket.user && socket.user.pseudo) {
+            finalPseudo = socket.user.pseudo;
             try {
-                const user = await User.findOne({ pseudo: finalPseudo });
+                const user = await User.findOne({ pseudo: finalPseudo }).select('currentSkin');
                 if (user) {
                     await User.updateOne({ pseudo: finalPseudo }, { $inc: { gamesJoined: 1 } });
                     if (user.currentSkin) userColor = user.currentSkin; 
                 }
             } catch (err) { console.error("Erreur chargement user:", err); }
+        } else {
+            // Mode Invité
+            finalPseudo = "Cube" + Math.floor(Math.random() * 1000);
         }
 
         players[socket.id] = {
@@ -235,9 +298,7 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('newPlayer', { playerId: socket.id, playerInfo: players[socket.id] });
     });
 
-    socket.on('leaveGame', async () => {
-        await removePlayerFromGame(socket.id);
-    });
+    socket.on('leaveGame', async () => { await removePlayerFromGame(socket.id); });
 
     socket.on('playerMovement', (movementData) => {
         if (players[socket.id]) {
@@ -273,20 +334,22 @@ io.on('connection', (socket) => {
                     const wolfPseudo = wolf.pseudo;
                     const targetPseudo = target.pseudo;
                     
+                    // MAJ Stats LOUP
                     if (wolfPseudo !== "Invité" && !wolfPseudo.startsWith("Cube")) {
                         const uWolf = await User.findOne({ pseudo: wolfPseudo });
                         if (uWolf) {
                             uWolf.tagsInflicted = (uWolf.tagsInflicted || 0) + 1;
                             await checkAchievements(uWolf, socket.id);
-                            await uWolf.save(); // [CORRECTION] Sauvegarde des stats du loup
+                            await uWolf.save();
                         }
                     }
+                    // MAJ Stats VICTIME
                     if (targetPseudo !== "Invité" && !targetPseudo.startsWith("Cube")) {
                         const uTarget = await User.findOne({ pseudo: targetPseudo });
                         if (uTarget) {
                             uTarget.timesTagged = (uTarget.timesTagged || 0) + 1;
-                            await checkAchievements(uTarget, targetId);
-                            await uTarget.save(); // [CORRECTION] Sauvegarde des stats de la victime
+                            await checkAchievements(uTarget, targetId); 
+                            await uTarget.save();
                         }
                     }
                 }
@@ -335,36 +398,40 @@ io.on('connection', (socket) => {
                     uploadCooldowns[socket.id] = now + COOLDOWN_NORMAL; 
                     currentBackground = imageData;
                     io.emit('updateBackground', imageData);
-                    const p = players[socket.id];
-                    if (p && p.pseudo !== "Invité" && !p.pseudo.startsWith("Cube")) {
-                         const u = await User.findOne({ pseudo: p.pseudo });
+                    
+                    if (socket.user && socket.user.pseudo) {
+                         const u = await User.findOne({ pseudo: socket.user.pseudo });
                          if(u) {
                              u.backgroundsChanged = (u.backgroundsChanged || 0) + 1;
                              await checkAchievements(u, socket.id);
-                             await u.save(); // [CORRECTION] Sauvegarde des stats de background
+                             await u.save();
                          }
                     }
                 }
             }
         } catch (error) {
-            console.error("Erreur changeBackground:", error.message);
+            console.error(error.message);
             socket.emit('uploadError', "Erreur analyse image.");
         }
     });
 
     socket.on('saveSkin', async (data) => {
-        const { pseudo, color } = data;
-        if (pseudo && color && pseudo !== "Invité") {
-             await User.updateOne({ pseudo: pseudo }, { $set: { currentSkin: color } });
+        // AUTHENTIFICATION : Seul le Token fait foi
+        if (socket.user && socket.user.pseudo && data.color) {
+             await User.updateOne({ pseudo: socket.user.pseudo }, { $set: { currentSkin: data.color } });
         }
     });
 
-    // --- GESTION DES CODES SECRETS ---
     socket.on('redeemCode', async (data) => {
-        const { pseudo, code } = data;
-        if (!pseudo || pseudo === "Invité") return;
+        const { code } = data;
+        if (!socket.user || !socket.user.pseudo) {
+            socket.emit('codeError', "Connecte-toi d'abord !");
+            return;
+        }
         
+        const pseudo = socket.user.pseudo;
         const cleanCode = code.trim().toUpperCase();
+
         if (SECRET_CODES[cleanCode]) {
             const reward = SECRET_CODES[cleanCode];
             const user = await User.findOne({ pseudo });
@@ -382,7 +449,7 @@ io.on('connection', (socket) => {
                         socket.emit('updateSkins', user.unlockedSkins);
                     } else {
                         socket.emit('codeError', "Tu as déjà ce skin !");
-                        // Optionnel: Sauvegarder si tu veux marquer le code comme utilisé même si le skin était déjà là
+                        await user.save(); 
                     }
                 }
             }
@@ -402,16 +469,14 @@ setInterval(() => {
     const ids = Object.keys(players);
     if (wolfId && ids.length > 1) {
         if (Date.now() - lastWolfMoveTime > 15000) { 
-            console.log(`Loup AFK (${wolfId}) -> Retour Lobby.`);
+            console.log(`Loup AFK (${wolfId}) -> Kick.`);
             io.to(wolfId).emit('forceLobby', 'afk'); 
-            const socketDuLoup = io.sockets.sockets.get(wolfId);
-            if (socketDuLoup) removePlayerFromGame(wolfId);
+            removePlayerFromGame(wolfId);
         }
     }
 }, 1000);
 
 // --- SAUVEGARDE PÉRIODIQUE ---
-const ONE_HOUR = 60 * 60 * 1000;
 setInterval(async () => {
     console.log("💾 Sauvegarde auto distances...");
     for (const id in players) {
@@ -422,13 +487,13 @@ setInterval(async () => {
                 if(user) {
                     user.distanceTraveled = (user.distanceTraveled || 0) + Math.round(p.pendingDistance);
                     await checkAchievements(user, id);
-                    await user.save(); // [CORRECTION] Sauvegarde périodique
+                    await user.save(); 
                 }
                 p.pendingDistance = 0;
             } catch (err) { console.error(`Erreur save dist ${p.pseudo}:`, err); }
         }
     }
-}, ONE_HOUR);
+}, 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 2220;
 http.listen(PORT, '0.0.0.0', () => {
