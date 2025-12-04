@@ -19,21 +19,16 @@ const UserSchema = new mongoose.Schema({
     pseudo: { type: String, unique: true, required: true },
     password: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
-    
-    // STATISTIQUES
-    tagsInflicted: { type: Number, default: 0 },       // Chasseur
-    timesTagged: { type: Number, default: 0 },         // Victime
-    gamesJoined: { type: Number, default: 0 },         // Connexions
-    distanceTraveled: { type: Number, default: 0 },    // Pixels parcourus
-    backgroundsChanged: { type: Number, default: 0 },  // Uploads
-    currentSkin: { type: String, default: null }       // Dernière couleur
+    tagsInflicted: { type: Number, default: 0 },
+    timesTagged: { type: Number, default: 0 },
+    gamesJoined: { type: Number, default: 0 },
+    distanceTraveled: { type: Number, default: 0 },
+    backgroundsChanged: { type: Number, default: 0 },
+    currentSkin: { type: String, default: null }
 });
 const User = mongoose.model('User', UserSchema);
 
-// Configuration Socket.io
-const io = require('socket.io')(http, {
-    maxHttpBufferSize: 5 * 1024 * 1024 
-});
+const io = require('socket.io')(http, { maxHttpBufferSize: 5 * 1024 * 1024 });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -55,7 +50,6 @@ let lastTagTime = 0;
 const TAG_COOLDOWN = 1000; 
 let lastWolfMoveTime = Date.now();
 
-
 // --- ROUTES AUTHENTIFICATION ---
 app.post('/api/register', async (req, res) => {
     const { pseudo, password } = req.body;
@@ -65,7 +59,6 @@ app.post('/api/register', async (req, res) => {
     try {
         const existingUser = await User.findOne({ pseudo: { $regex: new RegExp(`^${pseudo}$`, 'i') } });
         if (existingUser) return res.json({ success: false, message: "Pseudo pris." });
-
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = new User({ pseudo, password: hashedPassword });
         await newUser.save();
@@ -78,28 +71,20 @@ app.post('/api/login', async (req, res) => {
     try {
         const user = await User.findOne({ pseudo: { $regex: new RegExp(`^${pseudo}$`, 'i') } });
         if (!user) return res.json({ success: false, message: "Utilisateur inconnu." });
-
         const match = await bcrypt.compare(password, user.password);
         if (match) res.json({ success: true, pseudo: user.pseudo });
         else res.json({ success: false, message: "Mot de passe incorrect." });
     } catch (error) { res.json({ success: false, message: "Erreur serveur." }); }
 });
 
-// --- ROUTES STATISTIQUES ---
 app.get('/api/stats/:pseudo', async (req, res) => {
     try {
         const user = await User.findOne({ pseudo: req.params.pseudo });
         if (!user) return res.json({ success: false });
-
         const ratio = user.timesTagged === 0 ? user.tagsInflicted : (user.tagsInflicted / user.timesTagged).toFixed(2);
-
         res.json({
             success: true,
-            stats: {
-                ...user.toObject(),
-                ratio: ratio,
-                distanceTraveled: Math.round(user.distanceTraveled || 0)
-            }
+            stats: { ...user.toObject(), ratio: ratio, distanceTraveled: Math.round(user.distanceTraveled || 0) }
         });
     } catch (e) { res.json({ success: false }); }
 });
@@ -112,16 +97,46 @@ app.get('/api/leaderboard', async (req, res) => {
     } catch (e) { res.json({ success: false }); }
 });
 
+// --- HELPER: RETIRER JOUEUR DU JEU ---
+async function removePlayerFromGame(socketId) {
+    if (players[socketId]) {
+        const p = players[socketId];
+        // Sauvegarde distance
+        if (p.pendingDistance > 0 && p.pseudo !== "Invité" && !p.pseudo.startsWith("Cube")) {
+            await User.updateOne({ pseudo: p.pseudo }, { $inc: { distanceTraveled: Math.round(p.pendingDistance) } });
+        }
 
-// --- SOCKET.IO (JEU + LOGIQUE STATS) ---
+        delete players[socketId];
+        io.emit('playerDisconnected', socketId); // Retire le cube visuellement pour tout le monde
+
+        // Gestion Loup
+        if (socketId === wolfId) {
+            const ids = Object.keys(players);
+            if (ids.length > 0) {
+                wolfId = ids[Math.floor(Math.random() * ids.length)];
+                io.emit('updateWolf', wolfId);
+                lastWolfMoveTime = Date.now();
+            } else {
+                wolfId = null;
+                io.emit('updateWolf', null);
+            }
+        }
+    }
+}
+
+// --- SOCKET.IO ---
 io.on('connection', (socket) => {
     console.log('Nouveau socket : ' + socket.id);
 
+    // Envoi de l'état actuel (pour le fond flouté du lobby)
     socket.emit('currentPlayers', players);
     socket.emit('updateWolf', wolfId);
     if (currentBackground) socket.emit('updateBackground', currentBackground);
 
     socket.on('joinGame', async (pseudoSent) => {
+        // Si déjà en jeu, on ignore ou on reset
+        if(players[socket.id]) return;
+
         let finalPseudo = "Invité";
         let userColor = '#' + Math.floor(Math.random()*16777215).toString(16);
 
@@ -131,7 +146,6 @@ io.on('connection', (socket) => {
             finalPseudo = "Cube" + Math.floor(Math.random() * 1000);
         }
 
-        // CHARGEMENT PROFIL & STATS CONNEXION
         const isRegistered = finalPseudo !== "Invité" && !finalPseudo.startsWith("Cube");
         if (isRegistered) {
             try {
@@ -148,7 +162,7 @@ io.on('connection', (socket) => {
             y: Math.floor(Math.random() * 400) + 50,
             color: userColor,
             pseudo: finalPseudo,
-            pendingDistance: 0 // Distance accumulée en mémoire
+            pendingDistance: 0
         };
 
         if (!wolfId) {
@@ -157,21 +171,24 @@ io.on('connection', (socket) => {
             io.emit('updateWolf', wolfId);
         }
 
+        // Le joueur entre officiellement sur le terrain
         socket.emit('gameJoined', { id: socket.id, info: players[socket.id] });
         socket.broadcast.emit('newPlayer', { playerId: socket.id, playerInfo: players[socket.id] });
+    });
+
+    // Permet de quitter le jeu (retour lobby) sans déconnecter le socket
+    socket.on('leaveGame', async () => {
+        await removePlayerFromGame(socket.id);
     });
 
     socket.on('playerMovement', (movementData) => {
         if (players[socket.id]) {
             const p = players[socket.id];
-            
-            // Calcul distance
             const dx = movementData.x - p.x;
             const dy = movementData.y - p.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
             if (!p.pendingDistance) p.pendingDistance = 0;
             p.pendingDistance += dist;
-
             p.x = movementData.x;
             p.y = movementData.y;
             if (socket.id === wolfId) lastWolfMoveTime = Date.now();
@@ -195,7 +212,6 @@ io.on('connection', (socket) => {
                     io.emit('updateWolf', wolfId);
                     io.emit('playerTagged', { x: target.x + 25, y: target.y + 25, color: target.color });
 
-                    // MISE À JOUR STATS (TAGS)
                     const wolfPseudo = wolf.pseudo;
                     const targetPseudo = target.pseudo;
                     if (wolfPseudo !== "Invité" && !wolfPseudo.startsWith("Cube")) {
@@ -220,12 +236,9 @@ io.on('connection', (socket) => {
             socket.emit('uploadError', "Analyse d'image désactivée.");
             return;
         }
-
         try {
             const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
             let imageBuffer = Buffer.from(base64Data, 'base64');
-
-            // Optimisation GIF
             const isGif = imageBuffer.toString('ascii', 0, 3) === 'GIF';
             if (isGif) {
                 const metadata = await sharp(imageBuffer).metadata();
@@ -233,7 +246,6 @@ io.on('connection', (socket) => {
                 const randomFrameIndex = Math.floor(Math.random() * totalFrames);
                 imageBuffer = await sharp(imageBuffer, { page: randomFrameIndex }).png().toBuffer();
             }
-
             const form = new FormData();
             form.append('media', imageBuffer, 'image.jpg');
             form.append('models', 'nudity'); 
@@ -254,8 +266,6 @@ io.on('connection', (socket) => {
                     uploadCooldowns[socket.id] = now + COOLDOWN_NORMAL; 
                     currentBackground = imageData;
                     io.emit('updateBackground', imageData);
-                    
-                    // STATS UPDATE (BACKGROUND)
                     const p = players[socket.id];
                     if (p && p.pseudo !== "Invité" && !p.pseudo.startsWith("Cube")) {
                          User.updateOne({ pseudo: p.pseudo }, { $inc: { backgroundsChanged: 1 } }).exec();
@@ -272,8 +282,6 @@ io.on('connection', (socket) => {
         if (players[socket.id]) {
             players[socket.id].color = newColor; 
             io.emit('updatePlayerColor', { id: socket.id, color: newColor });
-            
-            // STATS UPDATE (SKIN)
             const p = players[socket.id];
             if (p && p.pseudo !== "Invité" && !p.pseudo.startsWith("Cube")) {
                 User.updateOne({ pseudo: p.pseudo }, { $set: { currentSkin: newColor } }).exec();
@@ -282,47 +290,32 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', async () => {
-        if (players[socket.id]) {
-            // Sauvegarde distance à la déconnexion
-            const p = players[socket.id];
-            if (p.pendingDistance > 0 && p.pseudo !== "Invité" && !p.pseudo.startsWith("Cube")) {
-                await User.updateOne({ pseudo: p.pseudo }, { $inc: { distanceTraveled: Math.round(p.pendingDistance) } });
-            }
-
-            delete players[socket.id];
-            io.emit('playerDisconnected', socket.id);
-            if (socket.id === wolfId) {
-                const ids = Object.keys(players);
-                if (ids.length > 0) {
-                    wolfId = ids[Math.floor(Math.random() * ids.length)];
-                    io.emit('updateWolf', wolfId);
-                    lastWolfMoveTime = Date.now();
-                } else {
-                    wolfId = null;
-                    io.emit('updateWolf', null);
-                }
-            }
-        }
+        await removePlayerFromGame(socket.id);
         delete uploadCooldowns[socket.id];
     });
 });
 
-// --- GESTION AFK ---
+// --- GESTION AFK (MODIFIÉE) ---
 setInterval(() => {
     const ids = Object.keys(players);
     if (wolfId && ids.length > 1) {
         if (Date.now() - lastWolfMoveTime > 15000) { 
-            console.log(`Loup AFK (${wolfId}) -> Expulsion.`);
-            io.to(wolfId).emit('afkKicked');
-            setTimeout(() => {
-                const socketDuLoup = io.sockets.sockets.get(wolfId);
-                if (socketDuLoup) socketDuLoup.disconnect(true);
-            }, 100);
+            console.log(`Loup AFK (${wolfId}) -> Retour Lobby.`);
+            
+            // 1. Prévenir le joueur qu'il est exclu vers le lobby
+            io.to(wolfId).emit('forceLobby', 'afk'); 
+            
+            // 2. Retirer proprement le joueur du jeu (mais garder socket connecté)
+            const socketDuLoup = io.sockets.sockets.get(wolfId);
+            if (socketDuLoup) {
+                // On appelle la fonction de nettoyage manuellement
+                removePlayerFromGame(wolfId);
+            }
         }
     }
 }, 1000);
 
-// --- SAUVEGARDE PÉRIODIQUE DISTANCE (1 HEURE) ---
+// --- SAUVEGARDE PÉRIODIQUE ---
 const ONE_HOUR = 60 * 60 * 1000;
 setInterval(async () => {
     console.log("💾 Sauvegarde auto distances...");
