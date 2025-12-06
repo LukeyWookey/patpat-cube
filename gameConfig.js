@@ -85,13 +85,21 @@ const ACHIEVEMENTS = [
         skinName: 'Hiver Éternel' 
     },
     { 
+        id: 'badapple', 
+        name: 'Bad Apple!', 
+        desc: 'Rejoindre 100 parties', 
+        condition: (u) => u.gamesJoined >= 100, 
+        rewardSkin: 'https://files.catbox.moe/8a4984.gif',  // <-- Le nom de la classe CSS
+        skinName: 'Bad Apple!' 
+    },
+    { 
         id: 'cat', 
         name: 'Chat Kawaii', 
         desc: 'Rejoindre 1000 parties', 
         condition: (u) => u.gamesJoined >= 1000, 
         rewardSkin: 'skin-kawaii-cat',  // <-- Le nom de la classe CSS
         skinName: 'Chat Kawaii' 
-    },
+    }
 ];
 
 // 2. CODES SECRETS
