@@ -103,7 +103,7 @@ const ACHIEVEMENTS = [
     {
         id: 'inverser',
         name: 'Le Monde à l\'Envers',
-        desc: 'Infliger 50 tags',
+        desc: 'Infliger 100 tags',
         condition: (u) => u.tagsInflicted >= 100,
         rewardSkin: 'skin-negative',
         skinName: 'Négatif'
