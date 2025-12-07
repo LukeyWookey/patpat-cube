@@ -99,6 +99,14 @@ const ACHIEVEMENTS = [
         condition: (u) => u.gamesJoined >= 1000, 
         rewardSkin: 'skin-kawaii-cat',  // <-- Le nom de la classe CSS
         skinName: 'Chat Kawaii' 
+    },
+    {
+        id: 'inverser',
+        name: 'Le Monde à l\'Envers',
+        desc: 'Infliger 50 tags',
+        condition: (u) => u.tagsInflicted >= 100,
+        rewardSkin: 'skin-negative',
+        skinName: 'Négatif'
     }
 ];
 

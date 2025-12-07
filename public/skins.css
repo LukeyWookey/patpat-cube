@@ -291,3 +291,19 @@
     z-index: 150;
     pointer-events: none;
 }
+
+
+.skin-negative {
+    /* Le fond doit être transparent pour voir l'effet à travers */
+    background-color: transparent;
+    
+    /* Inverse les couleurs de ce qui est derrière le cube */
+    backdrop-filter: invert(100%);
+    -webkit-backdrop-filter: invert(100%); /* Pour Safari / iOS */
+    
+    /* Une bordure blanche pour bien voir les contours du cube */
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    
+    /* Ombre portée pour le détacher du fond */
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+}

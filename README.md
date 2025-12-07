@@ -1,58 +1,84 @@
-# Cube
+**Cube — Jeu multijoueur (serveur Node/Socket.io)**
 
-**Présentation**
-- **Nom**: `cube` — petit projet web Node.js utilisant `express` et `socket.io`.
-- **But**: servir une application front (dans `public/`) via un serveur Node local.
+- **Projet :** Un petit jeu multijoueur web «Cube» avec authentification, scores, skins et arrière-plans personnalisés.
+- **Fichiers clés :** `server.js`, `gameConfig.js`, dossier `public/` (HTML/CSS/JS clients).
+
+**Description**
+- Ce dépôt contient le serveur Node.js d'un jeu en temps réel utilisant `socket.io` pour la logique multijoueur et une API REST minimale pour l'authentification et la gestion des statistiques.
+- Le serveur gère les comptes (MongoDB), les achievements, les skins et l'upload d'images (analyse via SightEngine si configuré).
+
+**Démo locale**
+- Ouvre un navigateur sur `http://localhost:2220` (ou le port que vous aurez configuré).
 
 **Prérequis**
-- **Node.js**: version 16+ recommandée.
-- **npm**: livré avec Node.js.
+- Node.js (>= 14 recommandé)
+- MongoDB (URI accessible)
+- Une clé JWT secrète pour sécuriser les tokens
+
+**Variables d'environnement**
+Créez un fichier `.env` à la racine avec au minimum :
+
+```
+JWT_SECRET=votre_secret_jwt_long_et_complexe
+MONGO_URI=mongodb://utilisateur:mdp@host:port/dbname
+# Optionnel pour analyse d'image (SightEngine)
+SIGHTENGINE_USER=xxx
+SIGHTENGINE_SECRET=yyy
+# Port doublement optionnel
+PORT=2220
+```
 
 **Installation**
-- Clonez le dépôt ou placez-vous dans le dossier du projet:
 
+1. Installer les dépendances :
 
-- Installez les dépendances:
-
-```pwsh
+```
 npm install
 ```
 
-**Lancer l'application**
-- Démarrer le serveur (exécute `server.js`):
+2. Lancer le serveur :
 
-```pwsh
+```
 node server.js
-# ou (si vous préférez un script npm):
-# npm start  # (script `start` non défini par défaut dans `package.json`)
 ```
 
-- Ouvrez votre navigateur à l'adresse: `http://localhost:2220` (ou le port exposé par `server.js`).
+Le serveur écoute par défaut sur le port `2220` si `PORT` n'est pas défini.
 
-**Scripts utiles**
-- **Installer**: `npm install`
-- **Démarrer**: `node server.js`
+**Structure principale**
+- `server.js` : logique serveur (Express + Socket.io), API REST et gestion des utilisateurs.
+- `gameConfig.js` : configuration des achievements, codes secrets, et mappings de skins.
+- `public/` : client web statique (`index.html`, styles, assets).
 
+**Fonctionnalités**
+- Authentification (enregistrement / login) avec JWT.
+- Parties en temps réel via `socket.io` (rejoindre, se déplacer, taguer).
+- Sauvegarde des statistiques utilisateur (MongoDB).
+- Système d'achievements et skins débloquables.
+- Upload d'image pour arrière-plan avec analyse (optionnelle) pour filtrer contenu inapproprié.
 
-**Structure du projet**
-- **`server.js`** : serveur Node/Express qui sert le contenu et gère les sockets.
-- **`public/`** : fichiers statiques (ex. `index.html`, CSS, client JS).
-- **`package.json`** : dépendances et scripts du projet.
+**Personnalisation rapide**
+- Modifier les récompenses et achievements : éditez `gameConfig.js`.
+- Modifier l'interface : éditez `public/index.html` et `public/skins.css`.
 
-**Développement**
-- Modifiez les fichiers dans `public/` pour changer l'interface.
-- Si vous utilisez `socket.io`, redémarrez le serveur après modification du code serveur.
-- Pour un redémarrage automatique (optionnel), installez `nodemon` globalement ou en dépendance de développement:
+**Sécurité & bonnes pratiques**
+- Ne publiez jamais votre `JWT_SECRET` ou `MONGO_URI` en clair dans le dépôt.
+- Utilisez des mots de passe forts et limitez l'accès à votre base de données.
+- Le serveur utilise `helmet` et des rate-limiters pour améliorer la sécurité.
 
-```pwsh
-npm install --save-dev nodemon
-npx nodemon server.js
-```
+**Dépannage rapide**
+- Erreur démarrage liée au JWT : assurez-vous que `JWT_SECRET` est défini.
+- Problème de connexion Mongo : vérifiez `MONGO_URI` et la disponibilité de MongoDB.
+- Si les uploads d'image échouent, vérifiez `SIGHTENGINE_USER` et `SIGHTENGINE_SECRET` ou désactivez l'analyse.
 
-**Dépannage**
-- Si une dépendance manque: réexécutez `npm install`.
-- Vérifiez le port dans `server.js` si la page ne s'affiche pas.
+**Contribution**
+- Suggestions, corrections ou nouvelles fonctionnalités : ouvrez une issue ou une PR.
+- Avant une PR, ajoutez une description claire et, si possible, un petit test manuel décrivant la validation.
 
-**Testé**
-- Vous pouvez tester le jeux directement sur se [site](https://cube.patpat-web.uk/)
-- 
+**Prochaines étapes recommandées**
+- Ajouter un script `npm start` dans `package.json` (si absent).
+- Ajouter des tests automatés pour les routes critiques.
+- Documenter les endpoints API (`/api/register`, `/api/login`, `/api/me`, `/api/leaderboard`, etc.).
+
+**Crédits**
+- Auteur / mainteneur : patpat
+
