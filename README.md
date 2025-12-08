@@ -1,4 +1,11 @@
-**Cube — Jeu multijoueur (serveur Node/Socket.io)**
+# **Cube — Jeu multijoueur (serveur Node/Socket.io)**
+
+<a href="https://github.com/Patpat200/cube/stargazers"><img src="https://img.shields.io/github/stars/Patpat200/cube" alt="Stars Badge"/></a>
+<a href="https://github.com/Patpat200/cube/network/members"><img src="https://img.shields.io/github/forks/Patpat200/cube" alt="Forks Badge"/></a>
+<a href="https://github.com/Patpat200/cube/pulls"><img src="https://img.shields.io/github/issues-pr/Patpat200/cube" alt="Pull Requests Badge"/></a>
+<a href="https://github.com/Patpat200/cube/issues"><img src="https://img.shields.io/github/issues/Patpat200/cube" alt="Issues Badge"/></a>
+<a href="https://github.com/Patpat200/cube/graphs/contributors"><img alt="GitHub contributors" src="https://img.shields.io/github/contributors/Patpat200/cube?color=2b9348"></a>
+
 
 - **Projet :** Un petit jeu multijoueur web «Cube» avec authentification, scores, skins et arrière-plans personnalisés.
 - **Fichiers clés :** `server.js`, `gameConfig.js`, dossier `public/` (HTML/CSS/JS clients).
