@@ -86,6 +86,7 @@ Le serveur écoute par défaut sur le port `2220` si `PORT` n'est pas défini.
 - Ajouter des tests automatés pour les routes critiques.
 - Documenter les endpoints API (`/api/register`, `/api/login`, `/api/me`, `/api/leaderboard`, etc.).
 
-**Crédits**
-- Auteur / mainteneur : patpat
+**Star History**
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Patpat200/cube&type=date&legend=top-left)](https://www.star-history.com/#Patpat200/cube&type=date&legend=top-left)
 
