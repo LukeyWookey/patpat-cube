@@ -98,7 +98,7 @@ let uploadCooldowns = {};
 
 // VARIABLES ADMIN
 let maintenanceMode = false;
-let godModeAdmins = new Set(); // IDs des sockets invincibles
+// Suppression de la variable godModeAdmins
 
 const API_USER = process.env.SIGHTENGINE_USER; 
 const API_SECRET = process.env.SIGHTENGINE_SECRET;
@@ -430,23 +430,6 @@ app.post('/api/admin/unban-ip', verifyAdmin, async (req, res) => {
     } catch(e) { res.status(500).json({ success: false }); }
 });
 
-// --- GESTION IP BANNIES (NOUVEAU) ---
-app.get('/api/admin/banned-ips', verifyAdmin, async (req, res) => {
-    try {
-        const list = await BannedIP.find().sort({ date: -1 });
-        res.json({ success: true, list });
-    } catch(e) { res.status(500).json({ success: false }); }
-});
-
-app.post('/api/admin/unban-ip', verifyAdmin, async (req, res) => {
-    try {
-        const { id } = req.body;
-        await BannedIP.findByIdAndDelete(id);
-        await addLog('UNBAN_IP', req.user.pseudo, 'IP', 'IP débannie');
-        res.json({ success: true });
-    } catch(e) { res.status(500).json({ success: false }); }
-});
-
 // --- SOCKET.IO ---
 async function removePlayerFromGame(socketId) {
     if (players[socketId]) {
@@ -462,7 +445,7 @@ async function removePlayerFromGame(socketId) {
             } catch(e) { console.error(e); }
         }
         delete players[socketId];
-        godModeAdmins.delete(socketId);
+        // Suppression du nettoyage godMode
         io.emit('playerDisconnected', socketId); 
         if (socketId === wolfId) {
             const ids = Object.keys(players);
@@ -532,12 +515,7 @@ io.on('connection', async (socket) => {
 
     socket.on('leaveGame', async () => { await removePlayerFromGame(socket.id); });
 
-    socket.on('toggleGodMode', () => {
-        if(socket.user && socket.user.isAdmin) {
-            if(godModeAdmins.has(socket.id)) { godModeAdmins.delete(socket.id); socket.emit('serverMessage', { text: "God Mode OFF", color: "blue" }); } 
-            else { godModeAdmins.add(socket.id); socket.emit('serverMessage', { text: "God Mode ON (Invincible)", color: "gold" }); }
-        }
-    });
+    // Suppression de socket.on('toggleGodMode')
 
     socket.on('playerMovement', (movementData) => {
         if (players[socket.id]) {
@@ -555,7 +533,7 @@ io.on('connection', async (socket) => {
 
     socket.on('tagPlayer', async (targetId) => {
         if (socket.id === wolfId && players[targetId]) {
-            if (godModeAdmins.has(targetId)) { socket.emit('serverMessage', { text: "Ce joueur est INVINCIBLE !", color: 'red' }); return; }
+            // Suppression de la vérification godModeAdmins
             const now = Date.now();
             const wolf = players[socket.id]; const target = players[targetId];
             const dx = Math.abs(wolf.x - target.x); const dy = Math.abs(wolf.y - target.y);

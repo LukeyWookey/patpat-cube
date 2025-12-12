@@ -119,8 +119,8 @@ const ACHIEVEMENTS = [
     { 
         id: 'triangle',
         name: 'Cube Triangle?',
-        desc: 'Changer 5 fois de fond',
-        condition: (u) => u.backgroundsChanged >= 5,
+        desc: 'Changer 10 fois de fond',
+        condition: (u) => u.backgroundsChanged >= 10,
         rewardSkin: 'skin-triangle',
         skinName: 'Cube Triangle?'
     },

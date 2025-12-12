@@ -336,7 +336,6 @@
     <input type="file" id="fileInput" accept="image/*">
     <button onclick="uploadImage()">Envoyer l'image</button>
     <div id="status" style="font-size: 12px; color: blue; margin-top: 5px;"></div>
-    <button id="btn-godmode" onclick="toggleGodMode()" style="display:none; margin-top:10px; background:gold; border:1px solid #990;">⚡ GOD MODE</button>
     <div style="margin-top:5px; font-size:11px; color:red;">Le joueur avec le bord ROUGE est le loup !</div>
 </div>
 
@@ -351,6 +350,9 @@
     const cubeSize = 50;
     let myId = null, myX = 0, myY = 0, currentWolfId = null, isPlaying = false;
     let currentUserPseudo = "Invité";
+    
+    // VARIABLE DE SECURITE SESSION
+    let isSessionAdmin = false;
 
     const keysPressed = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     const speedPerSec = 750, emitThrottleMs = 20, tagCooldownMs = 1000;
@@ -366,13 +368,15 @@
                 const data = await res.json();
                 if (data.success) {
                     currentUserPseudo = data.pseudo;
-                    localStorage.setItem('cube_is_admin', data.stats.isAdmin);
+                    // On définit le droit d'admin uniquement via la réponse serveur
+                    isSessionAdmin = data.stats.isAdmin;
+                    // Suppression de l'utilisation de localStorage pour 'cube_is_admin'
                     goToLobby(currentUserPseudo);
                     return;
                 }
             } catch(e) { console.error("Erreur auth auto", e); }
             localStorage.removeItem('cube_token');
-            localStorage.removeItem('cube_is_admin');
+            isSessionAdmin = false;
         }
     });
 
@@ -406,7 +410,8 @@
             if (data.success) {
                 msg.innerText = "Succès !"; msg.style.color = "green";
                 localStorage.setItem('cube_token', data.token);
-                localStorage.setItem('cube_is_admin', data.isAdmin);
+                // On met à jour la variable mémoire admin
+                isSessionAdmin = data.isAdmin;
                 currentUserPseudo = data.pseudo; socket.auth.token = data.token; socket.disconnect().connect();
                 setTimeout(() => goToLobby(data.pseudo), 500);
             } else { msg.innerText = data.message; msg.style.color = "red"; }
@@ -431,7 +436,7 @@
 
     function joinGameAsGuest() {
         localStorage.removeItem('cube_token');
-        localStorage.removeItem('cube_is_admin');
+        isSessionAdmin = false;
         socket.auth.token = null;
         socket.disconnect().connect();
         currentUserPseudo = "Invité"; 
@@ -450,9 +455,9 @@
         document.getElementById('menu-overlay').classList.remove('hidden');
         isPlaying = false;
         
-        const isAdmin = localStorage.getItem('cube_is_admin') === 'true';
-        let btnAdmin = document.getElementById('btn-admin-access');
-        if(isAdmin) {
+        // SECURITE : On utilise la variable mémoire, pas localStorage
+        if(isSessionAdmin) {
+            let btnAdmin = document.getElementById('btn-admin-access');
             if(!btnAdmin) {
                btnAdmin = document.createElement('button');
                btnAdmin.id = 'btn-admin-access';
@@ -464,10 +469,9 @@
                logoutBtn.parentNode.insertBefore(btnAdmin, logoutBtn);
             }
             btnAdmin.style.display = 'block';
-            document.getElementById('btn-godmode').style.display = 'block';
         } else {
+            let btnAdmin = document.getElementById('btn-admin-access');
             if(btnAdmin) btnAdmin.style.display = 'none';
-            document.getElementById('btn-godmode').style.display = 'none';
         }
 
         if(myId) { socket.emit('leaveGame'); myId = null; }
@@ -485,7 +489,7 @@
 
     function doLogout() {
         localStorage.removeItem('cube_token');
-        localStorage.removeItem('cube_is_admin');
+        isSessionAdmin = false;
         currentUserPseudo = "Invité";
         location.reload();
     }
@@ -828,6 +832,9 @@
     let currentEditId = null;
 
     function openAdmin() {
+        // PROTECTION SUPPLEMENTAIRE : Empêcher l'ouverture si la session n'est pas validée
+        if (!isSessionAdmin) return;
+        
         document.getElementById('lobby-panel').style.display = 'none';
         document.getElementById('admin-panel').style.display = 'block';
         showAdminTab('dash');
@@ -1026,7 +1033,7 @@
     }
 
     function toggleMaintenance() { sendAction('MAINTENANCE', {}); }
-    function toggleGodMode() { socket.emit('toggleGodMode'); }
+    function toggleGodMode() { /* Fonction supprimée */ }
 
     document.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT') toggleUI(); if (e.key.toLowerCase() === 'l' && isPlaying) tryLeaveGame(); if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = true; });
     document.addEventListener('keyup', (e) => { if(keysPressed.hasOwnProperty(e.key)) keysPressed[e.key] = false; });
